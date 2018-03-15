@@ -13,18 +13,19 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);
 
-  std::vector<int> to_visit;
-  for(int f_idx = 0; f_idx < F.rows(); f_idx++){
-    to_visit.push_back(f_idx);
-  }
+  std::set<int> visited;
+  int unseen_face_idx = 0;
 
-  std::cout << "F.rows()" << F.rows() << std::endl;
+  std::cout << "# Total Faces: " << F.rows() << std::endl;
   // BFS on entire F graph
-  while(!to_visit.empty()){
-    std::cout << "to_visit size" << to_visit.size() << std::endl;
+  while(visited.size() != F.rows()){
+    std::cout << "# Faces visited: " << visited.size() << std::endl;
     // Get a 'random' face_idx from to_visit
-    std::vector<int>::iterator to_visit_itr = to_visit.begin();
-    int face_idx = *to_visit_itr;
+    // while unseen_face_idx is in visited, increment it
+    while(visited.find(unseen_face_idx) != visited.end()){
+      unseen_face_idx += 1;
+    }
+    int face_idx = unseen_face_idx;
     // Initialize set with unseen face in it
     NormalSet normalSet(face_idx, N.row(face_idx));
 
@@ -34,15 +35,13 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
 
     // BFS on a single 'connected' componenet
     std::set<int> already_seen;
+    // push onto visited for cycle detection / avoidance
+    visited.insert(face_idx);
+
     while(!Q.empty()){
       // Get current face
       int curr_face = Q.front();
       Q.pop();
-
-      // remove from to_visit
-      remove_by_value(to_visit, curr_face);
-      // push onto already_seen for cycle detection / avoidance
-      already_seen.insert(curr_face);
 
       // Iterate over current face's neighbours
       std::vector<int> neighbours = get_neighbours(F, curr_face, edge_to_face);
@@ -50,15 +49,12 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
         int neighbour = *itr;
         Eigen::Vector3d neighbour_normal = N.row(neighbour);
         // Check that neighbour has similar normal and has not been on the queue already
-        if( similar_normals(neighbour_normal, normalSet.avg_normal) && !(already_seen.find(neighbour) != already_seen.end()) ){
+        if( similar_normals(neighbour_normal, normalSet.avg_normal) && !(visited.find(neighbour) != visited.end()) ){
           Q.push(neighbour);
           normalSet.addToSet(neighbour, neighbour_normal);
 
-          // TODO: does this need to be here?
-          // remove from to_visit
-          remove_by_value(to_visit, neighbour);
-          // push onto already_seen for cycle detection / avoidance
-          already_seen.insert(neighbour);
+          //push onto visited for cycle detection / avoidance
+          visited.insert(neighbour);
         }
       }
     }
@@ -67,18 +63,13 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
   return all_normal_sets;
 }
 
-void remove_by_value(std::vector<int> &vec, int value){
-  std::vector<int>::iterator position = std::find(vec.begin(), vec.end(), value);
-  if(position != vec.end()){
-    vec.erase(position);
-  }
-  // TODO: are we ever trying to remove something twice???
-}
-
 bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2){
-  double threshold = 0.866;
+  double threshold = 0.866; // 30 degrees
+  //double threshold = 0.8;
 
   // TODO: sanity check this works ok
+  n1.normalize();
+  n2.normalize();
   return n1.dot(n2) > threshold;
 }
 
