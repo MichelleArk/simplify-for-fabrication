@@ -18,6 +18,7 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
 
   std::cout << "# Total Faces: " << F.rows() << std::endl;
   // BFS on entire F graph
+  int id = 0;
   while(visited.size() != F.rows()){
     std::cout << "# Faces visited: " << visited.size() << std::endl;
     // Get a 'random' face_idx from to_visit
@@ -27,7 +28,8 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
     }
     int face_idx = unseen_face_idx;
     // Initialize set with unseen face in it
-    NormalSet normalSet(face_idx, N.row(face_idx));
+    NormalSet normalSet(face_idx, N.row(face_idx), id);
+	id++;
 
     // Initialize Q with random unseen face on it
     std::queue<int> Q;
@@ -118,4 +120,76 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
     edge_to_f.insert(make_pair(key20,f_idx));
   }
   return edge_to_f;
+}
+
+bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> foundSharedVertices) {
+	bool hasSharedBoundary = false;
+	for (int i = 0; i < bnd1.size(); i++) {
+		if (foundSharedVertices.find(bnd1(i)) != foundSharedVertices.end()) {
+			for (int j = 0; j < bnd2.size(); j++) {
+				if (bnd1(i) == bnd2(j)) {
+					int endpoint1 = bnd1(i);
+					int endpoint2 = bnd1(i);
+					int f = 1;
+					while (bnd1(i + f) == bnd2(j + f) && i + f < bnd1.size() && j + f < bnd2.size()) {
+						endpoint2 = bnd2(j + f);
+						foundSharedVertices.insert(endpoint2);
+						f++;
+					}
+					int b = 1;
+					while (bnd1(i - b) == bnd2(j - b) && i - b >= 0 && j - b >= 0) {
+						endpoint1 = bnd2(j - b);
+						foundSharedVertices.insert(endpoint1);
+						b++;
+					}
+					if (endpoint1 != endpoint2){
+						endpoints.push_back(endpoint1);
+						endpoints.push_back(endpoint2);
+						foundSharedVertices.erase(endpoint1);
+						foundSharedVertices.erase(endpoint2);
+						hasSharedBoundary = true;
+						i = f; // double check
+					}
+					else
+						foundSharedVertices.erase(endpoint1);
+				}
+			}
+		}
+	}
+	return hasSharedBoundary;
+}
+
+
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets) {
+	// Initialize boundaries
+	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
+		std::set<int> normal_set = (*set).face_set;
+		Eigen::MatrixXi F_set(normal_set.size(), 3);
+		std::set<int>::iterator face;
+		int i = 0;
+		for (face = normal_set.begin(); face != normal_set.end(); ++face) {
+			int face_idx = *face;
+			F_set.row(i) = F.row(face_idx);
+			i++;
+		}
+		Eigen::VectorXi bnd;
+		igl::boundary_loop(F_set, bnd);
+		(*set).addBoundary(bnd);
+	}
+
+	// Find longest shared boundaries
+	std::set<int> foundSharedVertices;
+	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
+		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
+			NormalSet set1 = *iter1;
+			NormalSet set2 = *iter2;
+			if (set1.id != set2.id) {
+
+				// Find path
+				std::vector<int> endpoints;
+				sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices);
+
+			}
+		}
+	}
 }

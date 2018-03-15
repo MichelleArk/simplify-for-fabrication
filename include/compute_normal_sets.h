@@ -9,6 +9,7 @@
 #include <queue>
 #include <igl/per_face_normals.h>
 #include "normalSet.h"
+#include <igl/boundary_loop.h>
 
 // Compute the Euler Characteristic of a given triangle mesh.
 //
@@ -16,8 +17,6 @@
 //   F  #F by 3 list of triangle indices into some vertex list V
 // Returns Euler Characteristic as an integer
 std::vector<NormalSet> compute_normal_sets( const Eigen::MatrixXi &F, const Eigen::MatrixXd &V);
-
-void remove_by_value(std::vector<int> &vec, int value);
 
 std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<std::string,int> edge_to_f);
 
