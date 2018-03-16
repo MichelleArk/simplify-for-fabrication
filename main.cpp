@@ -15,6 +15,11 @@ int main(int argc, char *argv[])
 
 
   std::vector<NormalSet> normal_sets = compute_normal_sets(F, V);
+  // Straighten edges
+  Eigen::MatrixXd newV;
+  straightenEdges(V, F, normal_sets, newV);
+
+
   // Create a libigl Viewer object
   igl::viewer::Viewer viewer;
   // Set the vertices and faces for the viewer

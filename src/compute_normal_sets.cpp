@@ -122,22 +122,24 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
   return edge_to_f;
 }
 
-bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> foundSharedVertices) {
+bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices) {
 	bool hasSharedBoundary = false;
 	for (int i = 0; i < bnd1.size(); i++) {
-		if (foundSharedVertices.find(bnd1(i)) != foundSharedVertices.end()) {
+		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
+		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end()) {
 			for (int j = 0; j < bnd2.size(); j++) {
 				if (bnd1(i) == bnd2(j)) {
+					std::cout << "checking" << std::endl;
 					int endpoint1 = bnd1(i);
 					int endpoint2 = bnd1(i);
 					int f = 1;
-					while (bnd1(i + f) == bnd2(j + f) && i + f < bnd1.size() && j + f < bnd2.size()) {
+					while (i + f < bnd1.size() && j + f < bnd2.size() && bnd1(i + f) == bnd2(j + f)) {
 						endpoint2 = bnd2(j + f);
 						foundSharedVertices.insert(endpoint2);
 						f++;
 					}
 					int b = 1;
-					while (bnd1(i - b) == bnd2(j - b) && i - b >= 0 && j - b >= 0) {
+					while (i - b >= 0 && j - b >= 0 && bnd1(i - b) == bnd2(j - b)) {
 						endpoint1 = bnd2(j - b);
 						foundSharedVertices.insert(endpoint1);
 						b++;
@@ -160,7 +162,7 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 }
 
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets) {
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV) {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
 		std::set<int> normal_set = (*set).face_set;
@@ -178,18 +180,61 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 	}
 
 	// Find longest shared boundaries
+	std::set<int> newVertices;
 	std::set<int> foundSharedVertices;
+	int F_size = 0;
 	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
+		std::set<int> boundingVertices;
+		NormalSet set1 = *iter1;
 		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
-			NormalSet set1 = *iter1;
 			NormalSet set2 = *iter2;
 			if (set1.id != set2.id) {
-
-				// Find path
+				// Find shared boundary
 				std::vector<int> endpoints;
-				sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices);
-
+				if (sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices)) {
+					for (int i = 0; i < endpoints.size(); i++) {
+						boundingVertices.insert(endpoints[i]);
+						newVertices.insert(endpoints[i]);
+					}
+				}
 			}
 		}
+		F_size += (boundingVertices.size() - 2);
+		//std::cout << F_size << std::endl;
 	}
+
+	std::cout << "FindAllNewVertices" << std::endl;
+	// Update V
+	newV.resize(newVertices.size(), 3);
+	std::set<int>::iterator veriter;
+	int i = 0;
+	for (veriter = newVertices.begin(); veriter != newVertices.end(); ++veriter) {
+		int v_idx = *veriter;
+		newV.row(i) = V.row(v_idx);
+		i++;
+	}
+
+	std::cout << "updatedV" << std::endl;
+	// Triangulate to make new F and update face_set in normalSet
+	Eigen::MatrixXi newF;
+	std::cout << "here" << std::endl;
+	std::cout << F_size << std::endl;
+	newF.resize(F_size, 3);
+	std::cout << "here" << std::endl;
+	int F_idx = 0;
+	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
+		NormalSet cur_set = *iter;
+		cur_set.face_set.clear();
+		std::cout << "here" << std::endl;
+		for (int i = 2; i < cur_set.bnd.size(); i++) { // Is it safe??
+			newF(F_idx, 0) = cur_set.bnd(0);
+			newF(F_idx, 1) = cur_set.bnd(i - 1);
+			newF(F_idx, 2) = cur_set.bnd(i);
+			cur_set.face_set.insert(F_idx);
+			F_idx++;
+			std::cout << F_idx << std::endl;
+		}
+	}
+	std::cout << "updatednewFhere" << std::endl;
+	F = newF; // Check if it works?
 }

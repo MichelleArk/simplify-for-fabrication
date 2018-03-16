@@ -20,7 +20,18 @@ void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal) {
 
 void NormalSet::addBoundary(Eigen::VectorXi boundary) {
 	bnd = boundary;
+}
+
+void NormalSet::updateBoundary(std::set<int> new_bnd) {
+	Eigen::VectorXi updated_bnd(new_bnd.size());
+	int idx = 0;
 	for (int i = 0; i < bnd.size(); i++) {
-		bndset.insert(bnd(i));
+		std::set<int>::iterator new_iter;
+		for (new_iter = new_bnd.begin(); new_iter != new_bnd.end(); ++new_iter) {
+			if (bnd(i) == *new_iter) {
+				updated_bnd(idx) = bnd(i);
+			}
+		}
 	}
+	bnd = updated_bnd; //check if it works
 }

@@ -23,4 +23,8 @@ std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<st
 bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2);
 
 std::map<std::string, int> preprocess_edge_to_face(const Eigen::MatrixXi &F);
+
+bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices);
+
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV);
 #endif
