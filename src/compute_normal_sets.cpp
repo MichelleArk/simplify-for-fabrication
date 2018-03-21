@@ -124,41 +124,51 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
 
 bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices) {
 	bool hasSharedBoundary = false;
+	std::cout << "bnd1" << std::endl;
+	std::cout << bnd1 << std::endl;
+	std::cout << "bnd2" << std::endl;
+	std::cout << bnd2 << std::endl;
 	for (int i = 0; i < bnd1.size(); i++) {
 		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
 		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end()) {
 			for (int j = 0; j < bnd2.size(); j++) {
 				if (bnd1(i) == bnd2(j)) {
-					std::cout << "checking" << std::endl;
+					//std::cout << "checking" << std::endl;
 					int endpoint1 = bnd1(i);
 					int endpoint2 = bnd1(i);
 					int f = 1;
-					while (i + f < bnd1.size() && j + f < bnd2.size() && bnd1(i + f) == bnd2(j + f)) {
-						endpoint2 = bnd2(j + f);
+					while (i + f < bnd1.size() && j - f >= 0 && bnd1(i + f) == bnd2(j - f)) {
+						//std::cout << "checking 1" << std::endl;
+						endpoint2 = bnd2(j - f);
 						foundSharedVertices.insert(endpoint2);
 						f++;
 					}
 					int b = 1;
-					while (i - b >= 0 && j - b >= 0 && bnd1(i - b) == bnd2(j - b)) {
-						endpoint1 = bnd2(j - b);
+					while (i - b >= 0 && j + b < bnd2.size() && bnd1(i - b) == bnd2(j + b)) {
+						//std::cout << "checking 2" << std::endl;
+						endpoint1 = bnd2(j + b);
 						foundSharedVertices.insert(endpoint1);
 						b++;
 					}
 					if (endpoint1 != endpoint2){
+						//std::cout << "checking 3" << std::endl;
 						endpoints.push_back(endpoint1);
 						endpoints.push_back(endpoint2);
 						foundSharedVertices.erase(endpoint1);
 						foundSharedVertices.erase(endpoint2);
 						hasSharedBoundary = true;
-						i = f; // double check
+						//i = f; // double check
 					}
-					else
-						foundSharedVertices.erase(endpoint1);
+					//else {
+						//std::cout << "checking erase" << std::endl;
+						//foundSharedVertices.erase(endpoint1);
+					//}
 				}
 			}
 		}
 	}
-	return hasSharedBoundary;
+	return (endpoints.size() > 0);
+		//hasSharedBoundary;
 }
 
 
@@ -188,14 +198,22 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		NormalSet set1 = *iter1;
 		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
 			NormalSet set2 = *iter2;
+			std::cout << "set1 id" << std::endl;
+			std::cout << set1.id << std::endl;
+			std::cout << "set2 id" << std::endl;
+			std::cout << set2.id << std::endl;
 			if (set1.id != set2.id) {
 				// Find shared boundary
 				std::vector<int> endpoints;
+				std::cout << "here 1" << std::endl;
 				if (sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices)) {
+					std::cout << "here 2" << std::endl;
 					for (int i = 0; i < endpoints.size(); i++) {
+						std::cout<< endpoints[i] <<std::endl;
 						boundingVertices.insert(endpoints[i]);
 						newVertices.insert(endpoints[i]);
 					}
+					//F_size += (boundingVertices.size() - 2);
 				}
 			}
 		}
@@ -214,13 +232,14 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		i++;
 	}
 
+	std::cout << -1 % 4 << std::endl;
 	std::cout << "updatedV" << std::endl;
 	// Triangulate to make new F and update face_set in normalSet
 	Eigen::MatrixXi newF;
-	std::cout << "here" << std::endl;
+	//std::cout << "here" << std::endl;
 	std::cout << F_size << std::endl;
 	newF.resize(F_size, 3);
-	std::cout << "here" << std::endl;
+	//std::cout << "here" << std::endl;
 	int F_idx = 0;
 	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
 		NormalSet cur_set = *iter;
