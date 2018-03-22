@@ -224,12 +224,12 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		if (boundingVertices.size() > 2) {// Fixed by adding this condition, still need to figure out why there are cases = 2?
 			F_size += (boundingVertices.size() - 2);
 			(*iter1).simplifyBoundary(boundingVertices);
-			std::cout << "check here" << std::endl;
-			std::cout << (*iter1).simplified_bnd << std::endl; // Add another attribute to the class to store simplified_bnd; 
-															   //can't directly update the original bnd becasue we still need to use it for comparison (iter2) 
+			//std::cout << "check here" << std::endl;
+			//std::cout << (*iter1).simplified_bnd << std::endl; // Add another attribute to the class to store simplified_bnd;
+															   //can't directly update the original bnd becasue we still need to use it for comparison (iter2)
 		}
 	}
-	
+
 	std::cout << "FindAllNewVertices" << std::endl;
 	// Update V
 	newV.resize(newVertices.size(), 3);
@@ -243,30 +243,22 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 
 	std::cout << "updatedV" << std::endl;
 	// Triangulate to make new F and update face_set in normalSet
-	//Eigen::MatrixXi newF;
-	//std::cout << "here" << std::endl;
-	std::cout << F_size << std::endl;
 	newF.resize(F_size, 3);
-	//std::cout << "here" << std::endl;
-	int F_idx = 0;
-	
 	// This is the final version but it still does not quite work; also the coloring of faces is another problem (I ran it with release mode to bypass that problem)
-	std::cout << normal_sets.size() << std::endl;
+  int F_idx = 0;
 	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
 		NormalSet cur_set = *iter;
-		cur_set.face_set.clear();
-		std::cout << "here" << std::endl;
-		std::cout << cur_set.simplified_bnd.size() << std::endl;
+		cur_set.clearSet();
 		for (int i = 2; i < cur_set.simplified_bnd.size(); i++) { // Is it safe??
 			if (cur_set.simplified_bnd.size() > 0) {
 				newF(F_idx, 0) = cur_set.simplified_bnd(0);
 				newF(F_idx, 1) = cur_set.simplified_bnd(i - 1);
 				newF(F_idx, 2) = cur_set.simplified_bnd(i);
-				cur_set.face_set.insert(F_idx);
+        cur_set.addToSet(F_idx, Eigen::Vector3d::Zero()); // 0 normal vector for now
 				F_idx++;
 			}
-			//std::cout << F_idx << std::endl;
 		}
+    *iter = cur_set;
 	}
 
 	// One with holes
@@ -302,6 +294,6 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		}
 	}
 	*/
-	std::cout << "updatednewFhere" << std::endl;
+	std::cout << "updatednewF" << std::endl;
 	//F = newF; // Check if it works?
 }

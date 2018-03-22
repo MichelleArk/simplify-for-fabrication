@@ -8,8 +8,9 @@ class NormalSet {
     NormalSet();
     NormalSet(int face_idx, Eigen::Vector3d normal, int id);
     void addToSet(int face_idx, Eigen::Vector3d normal);
-	void addBoundary(Eigen::VectorXi boundary);
-	void simplifyBoundary(std::set<int> new_bnd);
+    void clearSet();
+  	void addBoundary(Eigen::VectorXi boundary);
+  	void simplifyBoundary(std::set<int> new_bnd);
 
 	int id;
 	std::set<int> face_set;

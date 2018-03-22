@@ -19,6 +19,11 @@ void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal) {
   face_set.insert(face_idx);
 }
 
+void NormalSet::clearSet(){
+  face_set.clear();
+  avg_normal = Eigen::Vector3d::Zero();
+}
+
 void NormalSet::addBoundary(Eigen::VectorXi boundary) {
 	bnd = boundary;
 }
