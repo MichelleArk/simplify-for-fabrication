@@ -1,4 +1,5 @@
 #include "normalSet.h"
+#include <iostream>
 
 NormalSet::NormalSet(){
   avg_normal = Eigen::Vector3d::Zero();
@@ -22,16 +23,20 @@ void NormalSet::addBoundary(Eigen::VectorXi boundary) {
 	bnd = boundary;
 }
 
-void NormalSet::updateBoundary(std::set<int> new_bnd) {
-	Eigen::VectorXi updated_bnd(new_bnd.size());
+void NormalSet::simplifyBoundary(std::set<int> new_bnd) {
+	simplified_bnd.resize(new_bnd.size());
 	int idx = 0;
 	for (int i = 0; i < bnd.size(); i++) {
 		std::set<int>::iterator new_iter;
 		for (new_iter = new_bnd.begin(); new_iter != new_bnd.end(); ++new_iter) {
 			if (bnd(i) == *new_iter) {
-				updated_bnd(idx) = bnd(i);
+				//std::cout << "inside simplify" << std::endl;
+				simplified_bnd(idx) = bnd(i);
+				//std::cout << simplified_bnd(idx) << std::endl;
+				idx++;
 			}
 		}
 	}
-	bnd = updated_bnd; //check if it works
+	//std::cout << "what you want to check" << std::endl;
+	//std::cout << simplified_bnd << std::endl;
 }

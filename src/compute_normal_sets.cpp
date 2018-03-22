@@ -123,11 +123,6 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
 }
 
 bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices) {
-	bool hasSharedBoundary = false;
-	std::cout << "bnd1" << std::endl;
-	std::cout << bnd1 << std::endl;
-	std::cout << "bnd2" << std::endl;
-	std::cout << bnd2 << std::endl;
 	for (int i = 0; i < bnd1.size(); i++) {
 		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
 		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end()) {
@@ -137,26 +132,35 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 					int endpoint1 = bnd1(i);
 					int endpoint2 = bnd1(i);
 					int f = 1;
+					// fixed code, please double check if it works (I checked with the cube and it works)
+					while (f < bnd1.size() && bnd1((i + f) % bnd1.size()) == bnd2((j - f + bnd2.size()) % bnd2.size())) {
+						endpoint2 = bnd2((j - f + bnd2.size()) % bnd2.size());
+						foundSharedVertices.insert(endpoint2);
+						f++;
+					}
+					// Original code
+					/*
 					while (i + f < bnd1.size() && j - f >= 0 && bnd1(i + f) == bnd2(j - f)) {
-						//std::cout << "checking 1" << std::endl;
+						std::cout << "checking 1" << std::endl;
 						endpoint2 = bnd2(j - f);
 						foundSharedVertices.insert(endpoint2);
 						f++;
 					}
 					int b = 1;
 					while (i - b >= 0 && j + b < bnd2.size() && bnd1(i - b) == bnd2(j + b)) {
-						//std::cout << "checking 2" << std::endl;
+						std::cout << "checking 2" << std::endl;
 						endpoint1 = bnd2(j + b);
 						foundSharedVertices.insert(endpoint1);
 						b++;
 					}
+					*/
 					if (endpoint1 != endpoint2){
 						//std::cout << "checking 3" << std::endl;
 						endpoints.push_back(endpoint1);
 						endpoints.push_back(endpoint2);
 						foundSharedVertices.erase(endpoint1);
 						foundSharedVertices.erase(endpoint2);
-						hasSharedBoundary = true;
+						//hasSharedBoundary = true;
 						//i = f; // double check
 					}
 					//else {
@@ -172,7 +176,7 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 }
 
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV) {
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF) {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
 		std::set<int> normal_set = (*set).face_set;
@@ -198,18 +202,18 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		NormalSet set1 = *iter1;
 		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
 			NormalSet set2 = *iter2;
-			std::cout << "set1 id" << std::endl;
-			std::cout << set1.id << std::endl;
-			std::cout << "set2 id" << std::endl;
-			std::cout << set2.id << std::endl;
+			//std::cout << "set1 id" << std::endl;
+			//std::cout << set1.id << std::endl;
+			//std::cout << "set2 id" << std::endl;
+			//std::cout << set2.id << std::endl;
 			if (set1.id != set2.id) {
 				// Find shared boundary
 				std::vector<int> endpoints;
-				std::cout << "here 1" << std::endl;
+				//std::cout << "here 1" << std::endl;
 				if (sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices)) {
-					std::cout << "here 2" << std::endl;
+					//std::cout << "here 2" << std::endl;
 					for (int i = 0; i < endpoints.size(); i++) {
-						std::cout<< endpoints[i] <<std::endl;
+						//std::cout<< endpoints[i] <<std::endl;
 						boundingVertices.insert(endpoints[i]);
 						newVertices.insert(endpoints[i]);
 					}
@@ -217,10 +221,15 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 				}
 			}
 		}
-		F_size += (boundingVertices.size() - 2);
-		//std::cout << F_size << std::endl;
+		if (boundingVertices.size() > 2) {// Fixed by adding this condition, still need to figure out why there are cases = 2?
+			F_size += (boundingVertices.size() - 2);
+			(*iter1).simplifyBoundary(boundingVertices);
+			std::cout << "check here" << std::endl;
+			std::cout << (*iter1).simplified_bnd << std::endl; // Add another attribute to the class to store simplified_bnd; 
+															   //can't directly update the original bnd becasue we still need to use it for comparison (iter2) 
+		}
 	}
-
+	
 	std::cout << "FindAllNewVertices" << std::endl;
 	// Update V
 	newV.resize(newVertices.size(), 3);
@@ -232,28 +241,67 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		i++;
 	}
 
-	std::cout << -1 % 4 << std::endl;
 	std::cout << "updatedV" << std::endl;
 	// Triangulate to make new F and update face_set in normalSet
-	Eigen::MatrixXi newF;
+	//Eigen::MatrixXi newF;
 	//std::cout << "here" << std::endl;
 	std::cout << F_size << std::endl;
 	newF.resize(F_size, 3);
 	//std::cout << "here" << std::endl;
 	int F_idx = 0;
+	
+	// This is the final version but it still does not quite work; also the coloring of faces is another problem (I ran it with release mode to bypass that problem)
+	std::cout << normal_sets.size() << std::endl;
 	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
 		NormalSet cur_set = *iter;
 		cur_set.face_set.clear();
 		std::cout << "here" << std::endl;
+		std::cout << cur_set.simplified_bnd.size() << std::endl;
+		for (int i = 2; i < cur_set.simplified_bnd.size(); i++) { // Is it safe??
+			if (cur_set.simplified_bnd.size() > 0) {
+				newF(F_idx, 0) = cur_set.simplified_bnd(0);
+				newF(F_idx, 1) = cur_set.simplified_bnd(i - 1);
+				newF(F_idx, 2) = cur_set.simplified_bnd(i);
+				cur_set.face_set.insert(F_idx);
+				F_idx++;
+			}
+			//std::cout << F_idx << std::endl;
+		}
+	}
+
+	// One with holes
+	/*
+	for (std::set<std::vector<int>>::iterator iter = bnd_sets.begin(); iter != bnd_sets.end(); iter++) {
+		std::vector<int> cur_bnd = *iter;
+		std::cout << "here" << std::endl;
+		std::cout << cur_bnd.size() << std::endl;
+		for (int i = 2; i < cur_bnd.size(); i++) { // Is it safe??
+			newF(F_idx, 0) = cur_bnd[0];
+			newF(F_idx, 1) = cur_bnd[i - 1];
+			newF(F_idx, 2) = cur_bnd[i];
+			//cur_set.face_set.insert(F_idx);
+			F_idx++;
+			//std::cout << F_idx << std::endl;
+		}
+	}*/
+
+	// Does not work
+	/*
+	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
+		NormalSet cur_set = *iter;
+		cur_set.face_set.clear();
+		std::cout << "here" << std::endl;
+		std::cout << cur_set.bnd.size() << std::endl;
 		for (int i = 2; i < cur_set.bnd.size(); i++) { // Is it safe??
 			newF(F_idx, 0) = cur_set.bnd(0);
 			newF(F_idx, 1) = cur_set.bnd(i - 1);
 			newF(F_idx, 2) = cur_set.bnd(i);
 			cur_set.face_set.insert(F_idx);
 			F_idx++;
-			std::cout << F_idx << std::endl;
+			//std::cout << F_idx << std::endl;
 		}
 	}
+	*/
 	std::cout << "updatednewFhere" << std::endl;
-	F = newF; // Check if it works?
+	//F = newF; // Check if it works?
 }
