@@ -27,9 +27,10 @@ int main(int argc, char *argv[])
   // Set the vertices and faces for the viewer
   viewer.data.set_mesh(newV, newF);
   // viewer.data.add_points(newV, Eigen::RowVector3d(1,0,0));
-  viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0,1,0));
+  viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0.54, 0.47, 0.39)); // brown for edges
 
-  // Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,1);
+  // white faces for joints
+  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,1);
   // // each normal set has a different color
   // for(std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++){
   //   std::set<int> normal_set = (*set).face_set;
@@ -40,8 +41,8 @@ int main(int argc, char *argv[])
   //       C.row(face_idx) << Eigen::RowVector3d(r,g,b);
   //   }
   // }
-  //viewer.data.set_colors(C);
-
+  viewer.data.set_colors(C);
+  viewer.core.show_lines = false; // don't show wireframe on joints
   // Launch a viewer instance
   viewer.launch();
   return 0;

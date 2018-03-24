@@ -195,7 +195,7 @@ void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::Ma
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
   int v_step = icoV.rows(); int f_step = icoF.rows();
-
+  icoV *= 2; // scale
   newV.resize(v_step * icoCenters.size(),3);
   newF.resize(f_step * icoCenters.size(),3);
 
@@ -227,6 +227,7 @@ void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::Ma
 
 void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2)
 {
+  // This is very hacky and needs to be written better. twice as slow as it should be
   int E_size = 0;
   Eigen::MatrixXi seenEdges = Eigen::MatrixXi::Zero(V.rows(), V.rows());
 
@@ -259,7 +260,7 @@ void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &
 
   P1.resize(E_size, 3);
   P2.resize(E_size, 3);
-  for(int e_idx = 0; e_idx < (E_size*3) - 3; e_idx+=3){
+  for(int e_idx = 0; e_idx < (E_size*3); e_idx+=3){
     P1.row(e_idx/3) = Eigen::Vector3d(P1triplets[e_idx], P1triplets[e_idx+1], P1triplets[e_idx+2]);
     P2.row(e_idx/3) = Eigen::Vector3d(P2triplets[e_idx], P2triplets[e_idx+1], P2triplets[e_idx+2]);
   }
