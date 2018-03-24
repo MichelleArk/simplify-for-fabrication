@@ -29,7 +29,7 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
     int face_idx = unseen_face_idx;
     // Initialize set with unseen face in it
     NormalSet normalSet(face_idx, N.row(face_idx), id);
-	id++;
+	  id++;
 
     // Initialize Q with random unseen face on it
     std::queue<int> Q;
@@ -65,20 +65,16 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
   return all_normal_sets;
 }
 
-bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2){
+bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2)
+{
   double threshold = 0.866; // 30 degrees
   //double threshold = 0.8;
-
-  // TODO: sanity check this works ok
   n1.normalize();
   n2.normalize();
   return n1.dot(n2) > threshold;
 }
 
-std::vector<int> get_neighbours(
-  const Eigen::MatrixXi &F,
-  int f_idx,
-  std::map<std::string,int> edge_to_f)
+std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<std::string,int> edge_to_f)
 {
   std::vector<int> neighbours;
 
@@ -105,7 +101,8 @@ std::vector<int> get_neighbours(
   return neighbours;
 }
 
-std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
+std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F )
+{
   std::map<std::string, int> edge_to_f;
   int num_faces = F.rows();
   for(int f_idx= 0; f_idx < num_faces; f_idx++){
@@ -122,13 +119,13 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F ){
   return edge_to_f;
 }
 
-bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices) {
+bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices)
+{
 	for (int i = 0; i < bnd1.size(); i++) {
 		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
 		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end()) {
 			for (int j = 0; j < bnd2.size(); j++) {
 				if (bnd1(i) == bnd2(j)) {
-					//std::cout << "checking" << std::endl;
 					int endpoint1 = bnd1(i);
 					int endpoint2 = bnd1(i);
 					int f = 1;
@@ -138,59 +135,26 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 						foundSharedVertices.insert(endpoint2);
 						f++;
 					}
-					// Original code
-					/*
-					while (i + f < bnd1.size() && j - f >= 0 && bnd1(i + f) == bnd2(j - f)) {
-						std::cout << "checking 1" << std::endl;
-						endpoint2 = bnd2(j - f);
-						foundSharedVertices.insert(endpoint2);
-						f++;
-					}
-					int b = 1;
-					while (i - b >= 0 && j + b < bnd2.size() && bnd1(i - b) == bnd2(j + b)) {
-						std::cout << "checking 2" << std::endl;
-						endpoint1 = bnd2(j + b);
-						foundSharedVertices.insert(endpoint1);
-						b++;
-					}
-					*/
 					if (endpoint1 != endpoint2){
-						//std::cout << "checking 3" << std::endl;
 						endpoints.push_back(endpoint1);
 						endpoints.push_back(endpoint2);
 						foundSharedVertices.erase(endpoint1);
 						foundSharedVertices.erase(endpoint2);
-						//hasSharedBoundary = true;
-						//i = f; // double check
+						//i = fmin(i+f+1, bnd1.size()-1); // double check
 					}
-					//else {
-						//std::cout << "checking erase" << std::endl;
-						//foundSharedVertices.erase(endpoint1);
-					//}
 				}
 			}
 		}
 	}
 	return (endpoints.size() > 0);
-		//hasSharedBoundary;
 }
 
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF) {
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2)
+{
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
-		std::set<int> normal_set = (*set).face_set;
-		Eigen::MatrixXi F_set(normal_set.size(), 3);
-		std::set<int>::iterator face;
-		int i = 0;
-		for (face = normal_set.begin(); face != normal_set.end(); ++face) {
-			int face_idx = *face;
-			F_set.row(i) = F.row(face_idx);
-			i++;
-		}
-		Eigen::VectorXi bnd;
-		igl::boundary_loop(F_set, bnd);
-		(*set).addBoundary(bnd);
+		(*set).computeBoundary(F);
 	}
 
 	// Find longest shared boundaries
@@ -202,98 +166,101 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		NormalSet set1 = *iter1;
 		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
 			NormalSet set2 = *iter2;
-			//std::cout << "set1 id" << std::endl;
-			//std::cout << set1.id << std::endl;
-			//std::cout << "set2 id" << std::endl;
-			//std::cout << set2.id << std::endl;
 			if (set1.id != set2.id) {
 				// Find shared boundary
 				std::vector<int> endpoints;
-				//std::cout << "here 1" << std::endl;
 				if (sharedBoundary(set1.bnd, set2.bnd, endpoints, foundSharedVertices)) {
-					//std::cout << "here 2" << std::endl;
 					for (int i = 0; i < endpoints.size(); i++) {
-						//std::cout<< endpoints[i] <<std::endl;
 						boundingVertices.insert(endpoints[i]);
 						newVertices.insert(endpoints[i]);
 					}
-					//F_size += (boundingVertices.size() - 2);
 				}
 			}
 		}
 		if (boundingVertices.size() > 2) {// Fixed by adding this condition, still need to figure out why there are cases = 2?
 			F_size += (boundingVertices.size() - 2);
-			(*iter1).simplifyBoundary(boundingVertices);
-			//std::cout << "check here" << std::endl;
-			//std::cout << (*iter1).simplified_bnd << std::endl; // Add another attribute to the class to store simplified_bnd;
-															   //can't directly update the original bnd becasue we still need to use it for comparison (iter2)
+      //can't directly update the original bnd becasue we still need to use it for comparison (iter2)
+			set1.simplifyBoundary(boundingVertices);
+      *iter1 = set1;
 		}
 	}
+  // newV and newF store V, F to represent icosahedrons centered at newVertices
+  createApproxSpheres(newVertices, V, newV, newF);
+  // P1, P2 store edges between centers in newVertices based on normal_sets
+  connectApproxSpheres(normal_sets, V, P1, P2);
+}
 
-	std::cout << "FindAllNewVertices" << std::endl;
-	// Update V
-	newV.resize(newVertices.size(), 3);
-	std::set<int>::iterator veriter;
-	int i = 0;
-	for (veriter = newVertices.begin(); veriter != newVertices.end(); ++veriter) {
-		int v_idx = *veriter;
-		newV.row(i) = V.row(v_idx);
-		i++;
-	}
+void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF)
+{
+  Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
+  igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
+  int v_step = icoV.rows(); int f_step = icoF.rows();
 
-	std::cout << "updatedV" << std::endl;
-	// Triangulate to make new F and update face_set in normalSet
-	newF.resize(F_size, 3);
-	// This is the final version but it still does not quite work; also the coloring of faces is another problem (I ran it with release mode to bypass that problem)
-  int F_idx = 0;
-	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
-		NormalSet cur_set = *iter;
-		cur_set.clearSet();
-		for (int i = 2; i < cur_set.simplified_bnd.size(); i++) { // Is it safe??
-			if (cur_set.simplified_bnd.size() > 0) {
-				newF(F_idx, 0) = cur_set.simplified_bnd(0);
-				newF(F_idx, 1) = cur_set.simplified_bnd(i - 1);
-				newF(F_idx, 2) = cur_set.simplified_bnd(i);
-        cur_set.addToSet(F_idx, Eigen::Vector3d::Zero()); // 0 normal vector for now
-				F_idx++;
-			}
-		}
-    *iter = cur_set;
-	}
+  newV.resize(v_step * icoCenters.size(),3);
+  newF.resize(f_step * icoCenters.size(),3);
 
-	// One with holes
-	/*
-	for (std::set<std::vector<int>>::iterator iter = bnd_sets.begin(); iter != bnd_sets.end(); iter++) {
-		std::vector<int> cur_bnd = *iter;
-		std::cout << "here" << std::endl;
-		std::cout << cur_bnd.size() << std::endl;
-		for (int i = 2; i < cur_bnd.size(); i++) { // Is it safe??
-			newF(F_idx, 0) = cur_bnd[0];
-			newF(F_idx, 1) = cur_bnd[i - 1];
-			newF(F_idx, 2) = cur_bnd[i];
-			//cur_set.face_set.insert(F_idx);
-			F_idx++;
-			//std::cout << F_idx << std::endl;
-		}
-	}*/
+  std::set<int>::iterator iter;
+  int v_i = 0; int f_i = 0;
+  // for each center, add the appropriate vertices and faces
+  int num_centers_seen = 0;
+  for (iter = icoCenters.begin(); iter != icoCenters.end(); ++iter) {
+  	int c_idx = *iter;
+  	Eigen::Vector3d center = V.row(c_idx);
+    //Joint new_Joint(c_idx, center, v_i, f_i);
+    for(int v = 0; v < v_step; v++){
+      //icoV vertices translated by center
+      newV(v_i,0) = center(0) + icoV(v,0);
+      newV(v_i,1) = center(1) + icoV(v,1);
+      newV(v_i,2) = center(2) + icoV(v,2);
+      v_i++;
+    }
+    for(int f = 0; f < f_step; f++){
+      //update indices to be global
+      newF(f_i,0) = icoF(f,0) + (num_centers_seen * v_step);
+      newF(f_i,1) = icoF(f,1) + (num_centers_seen * v_step);
+      newF(f_i,2) = icoF(f,2) + (num_centers_seen * v_step);
+      f_i++;
+    }
+    num_centers_seen += 1;
+  }
+}
 
-	// Does not work
-	/*
-	for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
-		NormalSet cur_set = *iter;
-		cur_set.face_set.clear();
-		std::cout << "here" << std::endl;
-		std::cout << cur_set.bnd.size() << std::endl;
-		for (int i = 2; i < cur_set.bnd.size(); i++) { // Is it safe??
-			newF(F_idx, 0) = cur_set.bnd(0);
-			newF(F_idx, 1) = cur_set.bnd(i - 1);
-			newF(F_idx, 2) = cur_set.bnd(i);
-			cur_set.face_set.insert(F_idx);
-			F_idx++;
-			//std::cout << F_idx << std::endl;
-		}
-	}
-	*/
-	std::cout << "updatednewF" << std::endl;
-	//F = newF; // Check if it works?
+void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2)
+{
+  int E_size = 0;
+  Eigen::MatrixXi seenEdges = Eigen::MatrixXi::Zero(V.rows(), V.rows());
+
+  typedef Eigen::Triplet< double > Triplet;
+  std::vector< double > P1triplets; // to store connecting triangles
+  std::vector< double > P2triplets;
+
+  for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
+    NormalSet cur_set = *iter;
+    for (int i = 0; i < cur_set.simplified_bnd.size(); i++) {
+      int v1 = cur_set.simplified_bnd(i);
+      int v2 = cur_set.simplified_bnd((i+1) % cur_set.simplified_bnd.size());
+
+      if(!seenEdges(v1, v2)){
+        P1triplets.push_back(V(v1,0));
+        P1triplets.push_back(V(v1,1));
+        P1triplets.push_back(V(v1,2));
+
+        P2triplets.push_back(V(v2,0));
+        P2triplets.push_back(V(v2,1));
+        P2triplets.push_back(V(v2,2));
+
+        // Mark the edge as seen in either direction
+        seenEdges(v1, v2) = 1;
+        seenEdges(v2, v1) = 1;
+        E_size += 1;
+      }
+    }
+  }
+
+  P1.resize(E_size, 3);
+  P2.resize(E_size, 3);
+  for(int e_idx = 0; e_idx < (E_size*3) - 3; e_idx+=3){
+    P1.row(e_idx/3) = Eigen::Vector3d(P1triplets[e_idx], P1triplets[e_idx+1], P1triplets[e_idx+2]);
+    P2.row(e_idx/3) = Eigen::Vector3d(P2triplets[e_idx], P2triplets[e_idx+1], P2triplets[e_idx+2]);
+  }
 }

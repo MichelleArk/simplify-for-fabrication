@@ -24,8 +24,19 @@ void NormalSet::clearSet(){
   avg_normal = Eigen::Vector3d::Zero();
 }
 
-void NormalSet::addBoundary(Eigen::VectorXi boundary) {
-	bnd = boundary;
+void NormalSet::computeBoundary(Eigen::MatrixXi &F) {
+  std::set<int> normal_set = face_set;
+  Eigen::MatrixXi F_set(normal_set.size(), 3);
+  std::set<int>::iterator face;
+  int i = 0;
+  for (face = normal_set.begin(); face != normal_set.end(); ++face) {
+  	int face_idx = *face;
+  	F_set.row(i) = F.row(face_idx);
+  	i++;
+  }
+  Eigen::VectorXi boundary;
+  igl::boundary_loop(F_set, boundary);
+  bnd = boundary;
 }
 
 void NormalSet::simplifyBoundary(std::set<int> new_bnd) {
@@ -35,13 +46,9 @@ void NormalSet::simplifyBoundary(std::set<int> new_bnd) {
 		std::set<int>::iterator new_iter;
 		for (new_iter = new_bnd.begin(); new_iter != new_bnd.end(); ++new_iter) {
 			if (bnd(i) == *new_iter) {
-				//std::cout << "inside simplify" << std::endl;
 				simplified_bnd(idx) = bnd(i);
-				//std::cout << simplified_bnd(idx) << std::endl;
 				idx++;
 			}
 		}
 	}
-	//std::cout << "what you want to check" << std::endl;
-	//std::cout << simplified_bnd << std::endl;
 }
