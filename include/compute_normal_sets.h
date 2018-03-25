@@ -21,10 +21,12 @@ std::map<std::string, int> preprocess_edge_to_face(const Eigen::MatrixXi &F);
 
 bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int> &endpoints, std::set<int> &foundSharedVertices);
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2);
+// TODO: move cost outta here
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd &Cost);
 
-void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF);
+void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF);
 
 void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2);
 
+void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V, std::vector<NormalSet> normal_sets, Eigen::VectorXd &C);
 #endif

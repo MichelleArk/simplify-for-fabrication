@@ -150,7 +150,7 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 }
 
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2)
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost)
 {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
@@ -184,13 +184,19 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
       *iter1 = set1;
 		}
 	}
+
+  // make newVertices a vector, not a set
+  std::vector<int> newVerticesVector;
+  newVerticesVector.assign(newVertices.begin(), newVertices.end());
   // newV and newF store V, F to represent icosahedrons centered at newVertices
-  createApproxSpheres(newVertices, V, newV, newF);
+  createApproxSpheres(newVerticesVector, V, newV, newF);
   // P1, P2 store edges between centers in newVertices based on normal_sets
   connectApproxSpheres(normal_sets, V, P1, P2);
+  // compute cost per vertex
+  computeRemovalCostPerVertex(newVerticesVector, V, normal_sets, Cost);
 }
 
-void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF)
+void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF)
 {
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
@@ -199,7 +205,7 @@ void createApproxSpheres(std::set<int> icoCenters, Eigen::MatrixXd &V, Eigen::Ma
   newV.resize(v_step * icoCenters.size(),3);
   newF.resize(f_step * icoCenters.size(),3);
 
-  std::set<int>::iterator iter;
+  std::vector<int>::iterator iter;
   int v_i = 0; int f_i = 0;
   // for each center, add the appropriate vertices and faces
   int num_centers_seen = 0;
@@ -263,5 +269,50 @@ void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &
   for(int e_idx = 0; e_idx < (E_size*3); e_idx+=3){
     P1.row(e_idx/3) = Eigen::Vector3d(P1triplets[e_idx], P1triplets[e_idx+1], P1triplets[e_idx+2]);
     P2.row(e_idx/3) = Eigen::Vector3d(P2triplets[e_idx], P2triplets[e_idx+1], P2triplets[e_idx+2]);
+  }
+}
+
+// indicies into V of new vertices
+void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V, std::vector<NormalSet> normal_sets, Eigen::VectorXd &C){
+  // initialize all costs to be 2pi
+  C = Eigen::VectorXd::Constant(newVertices.size(), 2 * M_PI);
+
+  int cost_idx = 0;
+  for (std::vector<int>::iterator v_itr= newVertices.begin(); v_itr != newVertices.end(); ++v_itr){
+    int v_idx = *v_itr;
+    // find every boundary loop that v_idx is part of, and compute internal angle in radians
+    for (std::vector<NormalSet>::iterator n_iter = normal_sets.begin(); n_iter != normal_sets.end(); n_iter++) {
+			NormalSet set = *n_iter;
+      // loop over simplified_bnd of set
+      int bnd_size = set.simplified_bnd.size();
+      for(int i = 0; i < bnd_size; i++){
+        if(set.simplified_bnd(i) == v_idx){
+          // make triangle from i-1, i, i+1;
+          int b_idx;
+          if(i-1 == -1){
+            b_idx = set.simplified_bnd(bnd_size-1);
+          }else{
+            b_idx = set.simplified_bnd(i-1);
+          }
+          int c_idx = set.simplified_bnd((i+1) % bnd_size);
+          // get length of edges
+          double bc = (V.row(b_idx) - V.row(c_idx)).norm();
+          double cv = (V.row(c_idx) - V.row(v_idx)).norm();
+          double vb = (V.row(v_idx) - V.row(b_idx)).norm();
+
+          double bc_squared = bc * bc;
+          double cv_squared = cv * cv;
+          double vb_squared = vb * vb;
+          // get internal angle in radians
+          C(cost_idx) -= acos(
+            (cv_squared + vb_squared - bc_squared)
+            / (2 * cv * vb));
+          // break out of loop that searches for v_idx in this simplified bnd
+          break;
+        }
+      }
+    }
+    C(cost_idx) = abs(C(cost_idx));
+    cost_idx++; // could be a point of error..
   }
 }
