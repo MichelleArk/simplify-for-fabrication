@@ -15,7 +15,7 @@ class NormalSet {
 
 	int id;
 	std::set<int> face_set;
-  Eigen::Vector3d avg_normal;
+    Eigen::Vector3d avg_normal;
 	Eigen::VectorXi bnd;
 	Eigen::VectorXi simplified_bnd;
 };

@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
   Eigen::MatrixXd P1, P2;
   Eigen::VectorXd Cost;
   straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost);
+
   // Create a libigl Viewer object
   igl::viewer::Viewer viewer;
   // Set the vertices and faces for the viewer
