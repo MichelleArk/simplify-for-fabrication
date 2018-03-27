@@ -3,10 +3,10 @@
 
 typedef Eigen::Triplet<int> T;
 
-std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V)
+void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std::vector<NormalSet>& all_normal_sets)
 {
   // initialize normal sets
-  std::vector<NormalSet> all_normal_sets;
+  //std::vector<NormalSet> all_normal_sets;
 
   std::map<std::string, int> edge_to_face = preprocess_edge_to_face(F);
 
@@ -18,7 +18,7 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
 
   std::cout << "# Total Faces: " << F.rows() << std::endl;
   // BFS on entire F graph
-  int id = 0;
+  //int id = 0;
   while(visited.size() != F.rows()){
     std::cout << "# Faces visited: " << visited.size() << std::endl;
     // Get a 'random' face_idx from to_visit
@@ -28,8 +28,8 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
     }
     int face_idx = unseen_face_idx;
     // Initialize set with unseen face in it
-    NormalSet normalSet(face_idx, N.row(face_idx), id);
-	  id++;
+    NormalSet normalSet(face_idx, N.row(face_idx));
+	  //id++;
 
     // Initialize Q with random unseen face on it
     std::queue<int> Q;
@@ -62,7 +62,7 @@ std::vector<NormalSet> compute_normal_sets(const Eigen::MatrixXi &F, const Eigen
     }
     all_normal_sets.push_back(normalSet);
   }
-  return all_normal_sets;
+  //return all_normal_sets;
 }
 
 bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2)
@@ -148,7 +148,6 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, std::vector<int>
 	}
 	return (endpoints.size() > 0);
 }
-
 
 void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost)
 {

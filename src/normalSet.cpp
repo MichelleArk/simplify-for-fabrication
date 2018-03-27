@@ -1,14 +1,19 @@
 #include "normalSet.h"
 #include <iostream>
 
+int NormalSet::current_id = -1;
+
 NormalSet::NormalSet(){
   avg_normal = Eigen::Vector3d::Zero();
+  id = current_id;
+  current_id++;
 }
 
-NormalSet::NormalSet(int face_idx, Eigen::Vector3d normal, int set_id) {
+NormalSet::NormalSet(int face_idx, Eigen::Vector3d normal) {
   face_set.insert(face_idx);
   avg_normal = normal;
-  id = set_id;
+  id = current_id;
+  current_id++;
 }
 
 void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal) {

@@ -11,7 +11,7 @@
 #include "normalSet.h"
 #include <igl/read_triangle_mesh.h>
 
-std::vector<NormalSet> compute_normal_sets( const Eigen::MatrixXi &F, const Eigen::MatrixXd &V);
+void compute_normal_sets( const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std::vector<NormalSet>& all_normal_sets);
 
 std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<std::string,int> edge_to_f);
 
