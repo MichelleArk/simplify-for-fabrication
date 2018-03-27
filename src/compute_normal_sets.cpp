@@ -183,7 +183,6 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
       *iter1 = set1;
 		}
 	}
-
   // make newVertices a vector, not a set
   std::vector<int> newVerticesVector;
   newVerticesVector.assign(newVertices.begin(), newVertices.end());
@@ -203,7 +202,6 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
       removeVertex(newVerticesVector, normal_sets, cur_V);
       createApproxSpheres(newVerticesVector, V, newV, newF);
       connectApproxSpheres(normal_sets, V, P1, P2);
-      std::cout << newF.size() << std::endl;
     }
     Cost_idx++;
   }
@@ -330,14 +328,12 @@ void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V
     cost_idx++; // could be a point of error..
   }
 }
-
 // Remove unimportant vertex
 void removeVertex(std::vector<int> &newVertices, std::vector<NormalSet> &normal_sets, int v_idx) {
 	std::vector<int>::iterator position = std::find(newVertices.begin(), newVertices.end(), v_idx);
 	if (position != newVertices.end()) {
 		newVertices.erase(position);
 	}
-
 	for (std::vector<NormalSet>::iterator n_iter = normal_sets.begin(); n_iter != normal_sets.end(); ++n_iter) {
 		NormalSet set = *n_iter;
 		for (int i = 0; i < set.simplified_bnd.size(); i++) {

@@ -113,6 +113,7 @@ void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vecto
   Eigen::MatrixXd P1, P2;
   Eigen::VectorXd Cost;
   straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost);
+
   // Create a libigl Viewer object
   viewer.data.clear();
   viewer.data.set_mesh(newV, newF);
