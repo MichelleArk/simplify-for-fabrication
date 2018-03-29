@@ -7,7 +7,8 @@
 #include <vector>
 #include <igl/unproject_onto_mesh.h>
 
-void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
+void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
+void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
 
 int main(int argc, char *argv[])
 {
@@ -15,11 +16,13 @@ int main(int argc, char *argv[])
   Eigen::MatrixXi F;
   // Load in a mesh
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/cube.obj", V, F);
-  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
+  //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
+  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
 
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);
   std::vector<NormalSet> normal_sets;
+  std::set<int> visited;
   NormalSet painting_set;
   int set_id = 0;
 
@@ -38,7 +41,7 @@ int main(int argc, char *argv[])
   bool painting = false;
   bool done = false;
   viewer.callback_mouse_down =
-  [&V,&F, &painting, &C, &done, &normal_sets, &painting_set, &set_id, &painting_color, &N]
+  [&V,&F, &painting, &C, &done, &normal_sets, &painting_set, &set_id, &painting_color, &N, &visited]
   (igl::viewer::Viewer& viewer, int, int)->bool
   {
     if(painting){
@@ -62,11 +65,12 @@ int main(int argc, char *argv[])
 
             painting_color = Eigen::Vector3d(r,g,b);
             //set_id++;
-            painting_set = NormalSet();
+            painting_set = NormalSet(true);
             done = false;
           }
           std::cout << fid << std::endl;
           painting_set.addToSet(fid, N.row(fid));
+          visited.insert(fid);
           C.row(fid) = painting_color;
           viewer.data.set_colors(C);
       }
@@ -84,7 +88,7 @@ int main(int argc, char *argv[])
       case 'p':
       {
         painting = !painting; // toggle
-        painting_set = NormalSet();
+        painting_set = NormalSet(true);
         done = false;
         break;
       }
@@ -95,8 +99,14 @@ int main(int argc, char *argv[])
       }
       case 's':
       {
-        simplify_for_fabrication(V, F, normal_sets, viewer);
+        simplify_for_fabrication(V, F, normal_sets, visited, viewer);
+        painting = false;
+        break;
       }
+      case 'n':
+        cluster_into_sets(V, F, normal_sets, visited, viewer);
+        painting = false;
+        break;
     }
     return true;
   };
@@ -104,9 +114,30 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer){
+void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer){
+  compute_normal_sets(F, V, normal_sets, visited);
+  // Set the vertices and faces for the viewer
+  viewer.data.set_mesh(V, F);
+
+  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(F.rows(),3,1);
+  // each normal set has a different color
+  for(std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++){
+    std::set<int> normal_set = (*set).face_set;
+    double r = ((double) rand() / (RAND_MAX)); double g = ((double) rand() / (RAND_MAX)); double b = ((double) rand() / (RAND_MAX));
+    std::set<int>::iterator face;
+    for (face = normal_set.begin(); face != normal_set.end(); ++face){
+        int face_idx = *face;
+
+        C.row(face_idx) << Eigen::RowVector3d(r,g,b);
+    }
+  }
+
+  viewer.data.set_colors(C);
+}
+
+void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer){
   // Compute normal sets
-  compute_normal_sets(F, V, normal_sets);
+  //compute_normal_sets(F, V, normal_sets, visited);
   // Straighten edges
   Eigen::MatrixXd newV;
   Eigen::MatrixXi newF;

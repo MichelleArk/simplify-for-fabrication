@@ -3,8 +3,9 @@
 
 int NormalSet::current_id = -1;
 
-NormalSet::NormalSet(){
+NormalSet::NormalSet(bool is_painted){
   avg_normal = Eigen::Vector3d::Zero();
+  painted = is_painted;
   id = current_id;
   current_id++;
 }
@@ -14,16 +15,22 @@ NormalSet::NormalSet(int face_idx, Eigen::Vector3d normal) {
   avg_normal = normal;
   id = current_id;
   current_id++;
+  painted = false;
 }
 
 void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal) {
   // Update avg_normal
-  int num_faces = face_set.size();
-  avg_normal = ((avg_normal * num_faces) + normal) / (num_faces + 1);
+  //int num_faces = face_set.size();
+  //avg_normal = ((avg_normal * num_faces) + normal) / (num_faces + 1);
+  updateAvgNormal(normal);
   // Add new face to set
   face_set.insert(face_idx);
 }
 
+void NormalSet::updateAvgNormal(Eigen::Vector3d new_normal){
+  int num_faces = face_set.size();
+  avg_normal = ((avg_normal * num_faces) + new_normal) / (num_faces + 1);
+}
 void NormalSet::clearSet(){
   face_set.clear();
   avg_normal = Eigen::Vector3d::Zero();
