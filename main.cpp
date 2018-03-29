@@ -16,8 +16,8 @@ int main(int argc, char *argv[])
   Eigen::MatrixXi F;
   // Load in a mesh
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/cube.obj", V, F);
-  //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
-  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
+  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
+  //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
 
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);

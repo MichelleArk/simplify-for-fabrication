@@ -128,9 +128,10 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F )
 
 bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painted, bool set2_painted, std::vector<int> &endpoints, std::set<int> &foundSharedVertices)
 {
+  std::set<int> localFoundSharedVertices;
 	for (int i = 0; i < bnd1.size(); i++) {
 		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
-		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end()) {
+		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end() && localFoundSharedVertices.find(bnd1(i)) == localFoundSharedVertices.end()) {
 			for (int j = 0; j < bnd2.size(); j++) {
 				if (bnd1(i) == bnd2(j)) {
 					int endpoint1 = bnd1(i);
@@ -138,13 +139,25 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
 					int f = 1;
 					// fixed code, please double check if it works (I checked with the cube and it works)
 					while (f < bnd1.size() && bnd1((i + f) % bnd1.size()) == bnd2((j - f + bnd2.size()) % bnd2.size())) {
-						endpoint2 = bnd2((j - f + bnd2.size()) % bnd2.size());
+            endpoint2 = bnd2((j - f + bnd2.size()) % bnd2.size());
 						foundSharedVertices.insert(endpoint2);
+            localFoundSharedVertices.insert(endpoint2);
             if(set2_painted || set1_painted){
               endpoints.push_back(endpoint2);
             }
 						f++;
 					}
+          // go backwards
+          int b = 1;
+          while (b < bnd1.size() && bnd1((i - b + bnd1.size()) % bnd1.size()) == bnd2((j + b) % bnd2.size())) {
+            endpoint1 = bnd2((j + b) % bnd2.size());
+            foundSharedVertices.insert(endpoint1);
+            localFoundSharedVertices.insert(endpoint1);
+            if(set2_painted || set1_painted){
+              endpoints.push_back(endpoint1);
+            }
+            b++;
+          }
 					if (endpoint1 != endpoint2){
 						endpoints.push_back(endpoint1);
             if(!set2_painted){ // to avoid pushing back endpoint2 twice
@@ -158,7 +171,7 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
 			}
 		}
 	}
-	return (endpoints.size() > 0);
+  return (endpoints.size() > 0);
 }
 
 void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost)
@@ -213,6 +226,8 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
   //   removeVertex(newVerticesVector, normal_sets, min_cost_vid);
   //   createApproxSpheres(newVerticesVector, V, newV, newF);
   //   connectApproxSpheres(normal_sets, V, P1, P2);
+  //
+  //   std::cout << "Number of edges after removal: " << P1.size() << std::endl;
   //   min_cost = -1;
   //   min_cost_vid = -1;
   //   computeRemovalCostPerVertex(newVerticesVector, V, normal_sets, Cost, min_cost_vid, min_cost);
@@ -224,7 +239,8 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
   int v_step = icoV.rows(); int f_step = icoF.rows();
-  icoV *= 0.000001; // scale
+  //icoV *= 0.001; // scale for bunny
+  icoV *= 2;
   newV.resize(v_step * icoCenters.size(),3);
   newF.resize(f_step * icoCenters.size(),3);
 
