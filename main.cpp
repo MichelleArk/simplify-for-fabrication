@@ -1,4 +1,4 @@
-#include "edges.h"
+#include "Edge.h"
 #include "euler_characteristic.h"
 #include <igl/read_triangle_mesh.h>
 #include <igl/viewer/Viewer.h>
@@ -6,6 +6,9 @@
 #include <normalSet.h>
 #include <vector>
 #include <igl/unproject_onto_mesh.h>
+#include <igl/upsample.h>
+#include <igl/qslim.h>
+#include <igl/doublearea.h>
 
 void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
 void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
@@ -18,9 +21,12 @@ int main(int argc, char *argv[])
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/cube.obj", V, F);
   igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
+  //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/cylinder.obj", V, F);
 
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);
+  Eigen::VectorXd doubA;
+  igl::doublearea(V, F, doubA);
   std::vector<NormalSet> normal_sets;
   std::set<int> visited;
   NormalSet painting_set;
@@ -41,7 +47,7 @@ int main(int argc, char *argv[])
   bool painting = false;
   bool done = false;
   viewer.callback_mouse_down =
-  [&V,&F, &painting, &C, &done, &normal_sets, &painting_set, &set_id, &painting_color, &N, &visited]
+  [&V,&F, &painting, &C, &done, &normal_sets, &painting_set, &set_id, &painting_color, &N, &visited, &doubA]
   (igl::viewer::Viewer& viewer, int, int)->bool
   {
     if(painting){
@@ -69,7 +75,7 @@ int main(int argc, char *argv[])
             done = false;
           }
           std::cout << fid << std::endl;
-          painting_set.addToSet(fid, N.row(fid));
+          painting_set.addToSet(fid, N.row(fid), doubA(fid)/2.0);
           visited.insert(fid);
           C.row(fid) = painting_color;
           viewer.data.set_colors(C);
@@ -104,7 +110,14 @@ int main(int argc, char *argv[])
         break;
       }
       case 'n':
-        cluster_into_sets(V, F, normal_sets, visited, viewer);
+		// preprocessing - working??
+		  //Eigen::MatrixXd NV;
+		  //Eigen::MatrixXi NF;
+		  //igl::upsample(V, F, NV, NF);
+		  //Eigen::VectorXi J, I;
+		  //if (igl::qslim(NV, NF, F.rows(), V, F, J, I))
+			  //std::cout << "qslim succeed" << std::endl;
+		cluster_into_sets(V, F, normal_sets, visited, viewer);
         painting = false;
         break;
     }
@@ -116,6 +129,7 @@ int main(int argc, char *argv[])
 
 void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer){
   compute_normal_sets(F, V, normal_sets, visited);
+  mergeNormalSets(V, F, normal_sets);
   // Set the vertices and faces for the viewer
   viewer.data.set_mesh(V, F);
 

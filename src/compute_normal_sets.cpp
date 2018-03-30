@@ -1,5 +1,6 @@
 #include "compute_normal_sets.h"
 #include <iostream>
+#include <igl/doublearea.h>
 
 typedef Eigen::Triplet<int> T;
 
@@ -14,6 +15,11 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
 
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);
+
+  // Compute doublearea
+  Eigen::VectorXd doubA;
+  igl::doublearea(V, F, doubA);
+  double total_area = doubA.sum()/2.0;
 
   //std::set<int> visited; // TODO: either pass this in or add all face_ids from all_normal_sets
   int unseen_face_idx = 0;
@@ -30,7 +36,7 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
     }
     int face_idx = unseen_face_idx;
     // Initialize set with unseen face in it
-    NormalSet normalSet(face_idx, N.row(face_idx));
+    NormalSet normalSet(face_idx, N.row(face_idx), doubA(face_idx)/2.0);
 	  //id++;
 
     // Initialize Q with random unseen face on it
@@ -56,9 +62,8 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
         if(similar_normals(neighbour_normal, normalSet.avg_normal) && !(visited.find(neighbour) != visited.end()) ){
           Q.push(neighbour);
           if(!(painted_faces.find(neighbour) != painted_faces.end())){ // neighbor is not painted
-            normalSet.addToSet(neighbour, neighbour_normal);
+            normalSet.addToSet(neighbour, neighbour_normal, doubA(neighbour)/2.0);
           } else{ // neighbor was painted
-            std::cout << "ASDJKHALSDJKHSLD" << std::endl;
             normalSet.updateAvgNormal(neighbour_normal);
           }
 
@@ -126,9 +131,10 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F )
   return edge_to_f;
 }
 
-bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painted, bool set2_painted, std::vector<int> &endpoints, std::set<int> &foundSharedVertices)
+bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painted, bool set2_painted, std::vector<int> &endpoints, std::set<int> &foundSharedVertices, Eigen::MatrixXd &V, double &shared_bnd_length)
 {
-  std::set<int> localFoundSharedVertices;
+	shared_bnd_length = 0;
+	std::set<int> localFoundSharedVertices;
 	for (int i = 0; i < bnd1.size(); i++) {
 		// Look for bnd1(i) inside of bnd2 if bnd1(i) is not already in a shared boundary
 		if (foundSharedVertices.find(bnd1(i)) == foundSharedVertices.end() && localFoundSharedVertices.find(bnd1(i)) == localFoundSharedVertices.end()) {
@@ -137,32 +143,38 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
 					int endpoint1 = bnd1(i);
 					int endpoint2 = bnd1(i);
 					int f = 1;
+					int prev_endpoint = endpoint1;
 					// fixed code, please double check if it works (I checked with the cube and it works)
 					while (f < bnd1.size() && bnd1((i + f) % bnd1.size()) == bnd2((j - f + bnd2.size()) % bnd2.size())) {
-            endpoint2 = bnd2((j - f + bnd2.size()) % bnd2.size());
+						endpoint2 = bnd2((j - f + bnd2.size()) % bnd2.size());
+						shared_bnd_length += ((V.row(prev_endpoint) - V.row(endpoint2)).norm());
+						prev_endpoint = endpoint2;
 						foundSharedVertices.insert(endpoint2);
-            localFoundSharedVertices.insert(endpoint2);
-            if(set2_painted || set1_painted){
-              endpoints.push_back(endpoint2);
-            }
+						localFoundSharedVertices.insert(endpoint2);
+						if(set2_painted || set1_painted) {
+							endpoints.push_back(endpoint2);
+						}
 						f++;
 					}
-          // go backwards
-          int b = 1;
-          while (b < bnd1.size() && bnd1((i - b + bnd1.size()) % bnd1.size()) == bnd2((j + b) % bnd2.size())) {
-            endpoint1 = bnd2((j + b) % bnd2.size());
-            foundSharedVertices.insert(endpoint1);
-            localFoundSharedVertices.insert(endpoint1);
-            if(set2_painted || set1_painted){
-              endpoints.push_back(endpoint1);
-            }
-            b++;
-          }
+					// go backwards
+					int b = 1;
+					prev_endpoint = endpoint1;
+					while (b < bnd1.size() && bnd1((i - b + bnd1.size()) % bnd1.size()) == bnd2((j + b) % bnd2.size())) {
+						endpoint1 = bnd2((j + b) % bnd2.size());
+						shared_bnd_length += ((V.row(prev_endpoint) - V.row(endpoint1)).norm());
+						prev_endpoint = endpoint1;
+						foundSharedVertices.insert(endpoint1);
+						localFoundSharedVertices.insert(endpoint1);
+						if(set2_painted || set1_painted){
+							endpoints.push_back(endpoint1);
+						}
+						b++;
+					}
 					if (endpoint1 != endpoint2){
 						endpoints.push_back(endpoint1);
-            if(!set2_painted){ // to avoid pushing back endpoint2 twice
-              endpoints.push_back(endpoint2);
-            }
+					if(!set2_painted){ // to avoid pushing back endpoint2 twice
+						endpoints.push_back(endpoint2);
+					}
 						foundSharedVertices.erase(endpoint1);
 						foundSharedVertices.erase(endpoint2);
 						//i = fmin(i+f+1, bnd1.size()-1); // double check
@@ -174,11 +186,83 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
   return (endpoints.size() > 0);
 }
 
+void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, double &min_weight, std::vector<NormalSet>::iterator & set_i, std::vector<NormalSet>::iterator & set_j) {
+	// Compute doublearea
+	Eigen::VectorXd doubA;
+	igl::doublearea(V, F, doubA);
+	double total_area = doubA.sum() / 2.0;
+	min_weight = -1;
+
+	// Compute edge cost if find shared boundaries
+	std::set<int> foundSharedVertices;
+	std::vector<RegionEdge> region_edges;
+	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
+		NormalSet set1 = *iter1;
+		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
+			NormalSet set2 = *iter2;
+			if (set1.id != set2.id) {
+				// Find shared boundary
+				std::vector<int> endpoints;
+				double shared_bnd_length;
+				if (set1.id < set2.id) { // To avoid adding ij and ji twice
+					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
+						double area_weight = fmin(set1.area, set2.area) / total_area;
+						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
+						set1.avg_normal.normalize();
+						set2.avg_normal.normalize();
+						double normal_weight = (1.0 - set1.avg_normal.dot(set2.avg_normal)) / 2.0;
+						RegionEdge region_edge(set1.id, set2.id, normal_weight, area_weight, perimeter_weight);
+						if (min_weight == -1 || min_weight > region_edge.weight) {
+							min_weight = region_edge.weight;
+							set_i = iter1;
+							set_j = iter2;
+						}
+						//region_edges.push_back(region_edge);
+					}
+				}
+			}
+		}
+	}
+}
+
+void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets) {
+	double threshold = 0.5;
+	// Initialize boundaries
+	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
+		(*set).computeBoundary(F, V);
+	}
+	double min_weight;
+	std::vector<NormalSet>::iterator set_i, set_j;
+	getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+	int seti_size = (*set_i).face_set.size();
+	int setj_size = (*set_j).face_set.size();
+
+	while (normal_sets.size() > 50) {//min_weight < threshold) {
+		for (std::set<int>::iterator set_iter = (*set_j).face_set.begin(); set_iter != (*set_j).face_set.end(); set_iter++) {
+			(*set_i).face_set.insert(*set_iter);
+		}
+		(*set_i).avg_normal = ((*set_i).avg_normal*seti_size + (*set_j).avg_normal*setj_size) / (seti_size + setj_size);
+		(*set_i).area += (*set_j).area;
+		//std::cout <<"normal set size before" << normal_sets.size() << std::endl;
+		normal_sets.erase(set_j);
+		std::cout <<"normal set size after" << normal_sets.size() << std::endl;
+		for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
+			(*set).computeBoundary(F, V);
+		}
+		getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+		std::cout << "min weight" << min_weight << std::endl;
+		seti_size = (*set_i).face_set.size();
+		setj_size = (*set_j).face_set.size();
+	}
+	
+}
+
+
 void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost)
 {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
-		(*set).computeBoundary(F);
+		(*set).computeBoundary(F, V);
 	}
 
 	// Find longest shared boundaries
@@ -193,7 +277,8 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 			if (set1.id != set2.id) {
 				// Find shared boundary
 				std::vector<int> endpoints;
-				if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices)) {
+				double shared_bnd_length;
+				if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
 					for (int i = 0; i < endpoints.size(); i++) {
 						boundingVertices.insert(endpoints[i]);
 						newVertices.insert(endpoints[i]);
