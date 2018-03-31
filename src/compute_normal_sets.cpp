@@ -6,13 +6,9 @@ typedef Eigen::Triplet<int> T;
 
 void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std::vector<NormalSet>& all_normal_sets, std::set<int>& painted_faces)
 {
-  // initialize normal sets
-  //std::vector<NormalSet> all_normal_sets;
-
-  std::set<int> visited;
-
   std::map<std::string, int> edge_to_face = preprocess_edge_to_face(F);
 
+  // Compute per-face normals
   Eigen::MatrixXd N;
   igl::per_face_normals(V, F, Eigen::Vector3d(1,1,1).normalized(), N);
 
@@ -21,29 +17,34 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
   igl::doublearea(V, F, doubA);
   double total_area = doubA.sum()/2.0;
 
-  //std::set<int> visited; // TODO: either pass this in or add all face_ids from all_normal_sets
+
+  // Initialize visited set to empty
+  std::set<int> visited;
+  // For obtaining next seed
   int unseen_face_idx = 0;
 
-  std::cout << "# Total Faces: " << F.rows() << std::endl;
   // BFS on entire F graph
-  //int id = 0;
+  std::cout << "# Total Faces: " << F.rows() << std::endl;
   while(visited.size() != F.rows()){
     std::cout << "# Faces visited: " << visited.size() << std::endl;
-    // Get a 'random' face_idx from to_visit
-    // while unseen_face_idx is in visited, increment it
-    while(visited.find(unseen_face_idx) != visited.end()){
+    // FIND NEW SEED: Get a 'random' face_idx from to_visit
+    // while unseen_face_idx is in visited or in painted, increment it
+    while((visited.find(unseen_face_idx) != visited.end()) || (painted_faces.find(unseen_face_idx) != painted_faces.end())){
       unseen_face_idx += 1;
     }
     int face_idx = unseen_face_idx;
+    if(face_idx >= F.rows()){
+      break;
+    }
+
     // Initialize set with unseen face in it
     NormalSet normalSet(face_idx, N.row(face_idx), doubA(face_idx)/2.0);
-	  //id++;
 
     // Initialize Q with random unseen face on it
     std::queue<int> Q;
     Q.push(face_idx);
 
-    // BFS on a single 'connected' componenet
+    // BFS on a single connected componenet
     std::set<int> already_seen;
     // push onto visited for cycle detection / avoidance
     visited.insert(face_idx);
@@ -61,12 +62,11 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
         // Check that neighbour has similar normal and has not been on the queue already
         if(similar_normals(neighbour_normal, normalSet.avg_normal) && !(visited.find(neighbour) != visited.end()) ){
           Q.push(neighbour);
-          if(!(painted_faces.find(neighbour) != painted_faces.end())){ // neighbor is not painted
+          if(painted_faces.find(neighbour) == painted_faces.end()){ // neighbor is not painted
             normalSet.addToSet(neighbour, neighbour_normal, doubA(neighbour)/2.0);
-          } else{ // neighbor was painted
+          } else{ // neighbor was painted - consider the normal but do not add to set, since it is already claimed by painted region
             normalSet.updateAvgNormal(neighbour_normal);
           }
-
           //push onto visited for cycle detection / avoidance
           visited.insert(neighbour);
         }
@@ -78,9 +78,7 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
 
 bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2)
 {
-  //double threshold = 0.90;
-  double threshold = 0.866; // 30 degrees
-  //double threshold = 0.8;
+  double threshold = 0.95; // 30 degrees
   n1.normalize();
   n2.normalize();
   return n1.dot(n2) > threshold;
@@ -96,19 +94,15 @@ std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<st
   std::string key21 = std::to_string(v2) + "," + std::to_string(v1);
   std::string key02 = std::to_string(v0) + "," + std::to_string(v2);
 
-  int n1 = edge_to_f[key10];
-  int n2 = edge_to_f[key21];
-  int n3 = edge_to_f[key02];
-
-  // TODO: double-check that this is the right way to check if n_i was found
-  if(n1 != 0){
-    neighbours.push_back(n1);
+  // add to neighbours if key is found
+  if(edge_to_f.find(key10) != edge_to_f.end()){
+    neighbours.push_back(edge_to_f[key10]);
   }
-  if(n2 != 0){
-    neighbours.push_back(n2);
+  if(edge_to_f.find(key21) != edge_to_f.end()){
+    neighbours.push_back(edge_to_f[key21]);
   }
-  if(n3 != 0){
-    neighbours.push_back(n3);
+  if(edge_to_f.find(key02) != edge_to_f.end()){
+    neighbours.push_back(edge_to_f[key02]);
   }
   return neighbours;
 }
@@ -198,30 +192,38 @@ void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet>
 	std::vector<RegionEdge> region_edges;
 	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
 		NormalSet set1 = *iter1;
-		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
-			NormalSet set2 = *iter2;
-			if (set1.id != set2.id) {
-				// Find shared boundary
-				std::vector<int> endpoints;
-				double shared_bnd_length;
-				if (set1.id < set2.id) { // To avoid adding ij and ji twice
-					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
-						double area_weight = fmin(set1.area, set2.area) / total_area;
-						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
-						set1.avg_normal.normalize();
-						set2.avg_normal.normalize();
-						double normal_weight = (1.0 - set1.avg_normal.dot(set2.avg_normal)) / 2.0;
-						RegionEdge region_edge(set1.id, set2.id, normal_weight, area_weight, perimeter_weight);
-						if (min_weight == -1 || min_weight > region_edge.weight) {
-							min_weight = region_edge.weight;
-							set_i = iter1;
-							set_j = iter2;
-						}
-						//region_edges.push_back(region_edge);
-					}
-				}
-			}
-		}
+    if(!set1.painted){ // don't merge painted sets
+  		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
+  			NormalSet set2 = *iter2;
+        if(!set2.painted){
+    			if (set1.id != set2.id) {
+    				// Find shared boundary
+    				std::vector<int> endpoints;
+    				double shared_bnd_length;
+    				if (set1.id < set2.id) { // To avoid adding ij and ji twice
+    					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
+    						double area_weight = fmin(set1.area, set2.area) / total_area;
+                if(area_weight < 4.0 / F.rows()){ // one region is less than 4 faces
+                  area_weight = 0.00001;
+                }else{
+                  area_weight = 1;
+                }
+    						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
+    						set1.avg_normal.normalize();
+    						set2.avg_normal.normalize();
+    						double normal_weight = (1.0 - set1.avg_normal.dot(set2.avg_normal));
+                RegionEdge region_edge(set1.id, set2.id, normal_weight, area_weight, perimeter_weight);
+    						if (min_weight == -1 || min_weight > region_edge.weight) {
+    							min_weight = region_edge.weight;
+    							set_i = iter1;
+    							set_j = iter2;
+    						}
+    					}
+    				}
+    			}
+        }
+  		}
+    }
 	}
 }
 
@@ -237,24 +239,22 @@ void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 	int seti_size = (*set_i).face_set.size();
 	int setj_size = (*set_j).face_set.size();
 
-	while (normal_sets.size() > 50) {//min_weight < threshold) {
+	while (normal_sets.size() > 40) {//min_weight < threshold) {
 		for (std::set<int>::iterator set_iter = (*set_j).face_set.begin(); set_iter != (*set_j).face_set.end(); set_iter++) {
 			(*set_i).face_set.insert(*set_iter);
 		}
 		(*set_i).avg_normal = ((*set_i).avg_normal*seti_size + (*set_j).avg_normal*setj_size) / (seti_size + setj_size);
 		(*set_i).area += (*set_j).area;
-		//std::cout <<"normal set size before" << normal_sets.size() << std::endl;
 		normal_sets.erase(set_j);
-		std::cout <<"normal set size after" << normal_sets.size() << std::endl;
 		for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
 			(*set).computeBoundary(F, V);
 		}
 		getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
-		std::cout << "min weight" << min_weight << std::endl;
+		std::cout << "min weight " << min_weight << std::endl;
 		seti_size = (*set_i).face_set.size();
 		setj_size = (*set_j).face_set.size();
 	}
-	
+
 }
 
 

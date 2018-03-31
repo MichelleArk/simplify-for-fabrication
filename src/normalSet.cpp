@@ -24,8 +24,6 @@ NormalSet::NormalSet(int face_idx, Eigen::Vector3d normal, double cur_area) {
 
 void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal, double cur_area) {
   // Update avg_normal
-  //int num_faces = face_set.size();
-  //avg_normal = ((avg_normal * num_faces) + normal) / (num_faces + 1);
   updateAvgNormal(normal);
   // Add new face to set
   face_set.insert(face_idx);

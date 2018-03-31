@@ -10,8 +10,9 @@
 #include <igl/qslim.h>
 #include <igl/doublearea.h>
 
-void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
-void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer);
+void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
+void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
+void preprocess_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F);
 
 int main(int argc, char *argv[])
 {
@@ -28,9 +29,8 @@ int main(int argc, char *argv[])
   Eigen::VectorXd doubA;
   igl::doublearea(V, F, doubA);
   std::vector<NormalSet> normal_sets;
-  std::set<int> visited;
+  std::set<int> painted_faces;
   NormalSet painting_set;
-  int set_id = 0;
 
   double r = ((double) rand() / (RAND_MAX));
   double g = ((double) rand() / (RAND_MAX));
@@ -45,9 +45,8 @@ int main(int argc, char *argv[])
   Eigen::MatrixXd C = Eigen::MatrixXd::Constant(F.rows(),3,1);
 
   bool painting = false;
-  bool done = false;
   viewer.callback_mouse_down =
-  [&V,&F, &painting, &C, &done, &normal_sets, &painting_set, &set_id, &painting_color, &N, &visited, &doubA]
+  [&V,&F, &painting, &C, &normal_sets, &painting_set, &painting_color, &N, &painted_faces, &doubA]
   (igl::viewer::Viewer& viewer, int, int)->bool
   {
     if(painting){
@@ -56,29 +55,11 @@ int main(int argc, char *argv[])
       // Cast a ray in the view direction starting from the mouse position
       double x = viewer.current_mouse_x;
       double y = viewer.core.viewport(3) - viewer.current_mouse_y;
-      if(igl::unproject_onto_mesh(Eigen::Vector2f(x,y), viewer.core.view * viewer.core.model,
-        viewer.core.proj, viewer.core.viewport, V, F, fid, bc)){
-          if(done){
-            normal_sets.push_back(painting_set);
-            std::cout << "Done Painting Set " << painting_set.id << std::endl;
-            for (std::set<int>::iterator iter = painting_set.face_set.begin(); iter != painting_set.face_set.end(); iter++) {
-              std::cout << *iter << std::endl;
-            }
-            std::cout << "normal_sets size: " << normal_sets.size() << std::endl;
-            double r = ((double) rand() / (RAND_MAX));
-            double g = ((double) rand() / (RAND_MAX));
-            double b = ((double) rand() / (RAND_MAX));
-
-            painting_color = Eigen::Vector3d(r,g,b);
-            //set_id++;
-            painting_set = NormalSet(true);
-            done = false;
-          }
-          std::cout << fid << std::endl;
-          painting_set.addToSet(fid, N.row(fid), doubA(fid)/2.0);
-          visited.insert(fid);
-          C.row(fid) = painting_color;
-          viewer.data.set_colors(C);
+      if(igl::unproject_onto_mesh(Eigen::Vector2f(x,y), viewer.core.view * viewer.core.model, viewer.core.proj, viewer.core.viewport, V, F, fid, bc)){
+        painting_set.addToSet(fid, N.row(fid), doubA(fid)/2.0);
+        painted_faces.insert(fid);
+        C.row(fid) = painting_color;
+        viewer.data.set_colors(C);
       }
     }
     return false; // regular 3D manipulations
@@ -95,31 +76,52 @@ int main(int argc, char *argv[])
       {
         painting = !painting; // toggle
         painting_set = NormalSet(true);
-        done = false;
         break;
       }
       case 'd':
       {
-        done = true;
+        normal_sets.push_back(painting_set);
+        std::cout << "Done Painting Set " << painting_set.id << std::endl;
+        for (std::set<int>::iterator iter = painting_set.face_set.begin(); iter != painting_set.face_set.end(); iter++) {
+          std::cout << *iter << std::endl;
+        }
+        std::cout << "normal_sets size: " << normal_sets.size() << std::endl;
+        double r = ((double) rand() / (RAND_MAX));
+        double g = ((double) rand() / (RAND_MAX));
+        double b = ((double) rand() / (RAND_MAX));
+
+        // initialize new painting_set
+        painting_color = Eigen::Vector3d(r,g,b);
+        painting_set = NormalSet(true);
+
         break;
       }
       case 's':
       {
-        simplify_for_fabrication(V, F, normal_sets, visited, viewer);
+        view_straightened_mesh(V, F, normal_sets, viewer);
         painting = false;
         break;
       }
       case 'n':
-		// preprocessing - working??
-		  //Eigen::MatrixXd NV;
-		  //Eigen::MatrixXi NF;
-		  //igl::upsample(V, F, NV, NF);
-		  //Eigen::VectorXi J, I;
-		  //if (igl::qslim(NV, NF, F.rows(), V, F, J, I))
-			  //std::cout << "qslim succeed" << std::endl;
-		cluster_into_sets(V, F, normal_sets, visited, viewer);
+      {
+        compute_normal_sets(F, V, normal_sets, painted_faces);
+		    color_normal_sets(V, F, normal_sets, viewer);
         painting = false;
         break;
+      }
+      case 'm':
+      {
+        mergeNormalSets(V, F, normal_sets);
+        color_normal_sets(V, F, normal_sets, viewer);
+        painting = false;
+        break;
+      }
+      case 'q':
+      {
+        preprocess_mesh(V, F);
+        viewer.data.clear();
+        viewer.data.set_mesh(V, F);
+      }
     }
     return true;
   };
@@ -127,10 +129,18 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer){
-  compute_normal_sets(F, V, normal_sets, visited);
-  mergeNormalSets(V, F, normal_sets);
+void preprocess_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F){
+  // upsample then downsample with qslim
+  // Eigen::MatrixXd NV;
+  // Eigen::MatrixXi NF;
+  // igl::upsample(V, F, NV, NF);
+  Eigen::VectorXi J, I;
+  igl::qslim(V, F, F.rows()/2, V, F, J, I);
+}
+
+void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer){
   // Set the vertices and faces for the viewer
+  viewer.data.clear();
   viewer.data.set_mesh(V, F);
 
   Eigen::MatrixXd C = Eigen::MatrixXd::Constant(F.rows(),3,1);
@@ -141,7 +151,6 @@ void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<Norma
     std::set<int>::iterator face;
     for (face = normal_set.begin(); face != normal_set.end(); ++face){
         int face_idx = *face;
-
         C.row(face_idx) << Eigen::RowVector3d(r,g,b);
     }
   }
@@ -149,9 +158,7 @@ void cluster_into_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<Norma
   viewer.data.set_colors(C);
 }
 
-void simplify_for_fabrication(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, std::set<int> &visited, igl::viewer::Viewer &viewer){
-  // Compute normal sets
-  //compute_normal_sets(F, V, normal_sets, visited);
+void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer){
   // Straighten edges
   Eigen::MatrixXd newV;
   Eigen::MatrixXi newF;

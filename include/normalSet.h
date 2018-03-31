@@ -13,15 +13,15 @@ class NormalSet {
     void addToSet(int face_idx, Eigen::Vector3d normal, double cur_area);
     void updateAvgNormal(Eigen::Vector3d normal);
     void clearSet();
-	void NormalSet::computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V);
+	  void computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V);
   	void simplifyBoundary(std::set<int> new_bnd);
 
-	int id;
-	bool painted;
-	std::set<int> face_set;
-	Eigen::Vector3d avg_normal;
-	Eigen::VectorXi bnd;
-	Eigen::VectorXi simplified_bnd;
-	double area;
-	double perimeter;
+  	int id;
+  	bool painted;
+  	std::set<int> face_set;
+  	Eigen::Vector3d avg_normal;
+  	Eigen::VectorXi bnd;
+  	Eigen::VectorXi simplified_bnd;
+  	double area;
+  	double perimeter;
 };
