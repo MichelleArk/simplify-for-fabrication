@@ -30,6 +30,16 @@ void NormalSet::addToSet(int face_idx, Eigen::Vector3d normal, double cur_area) 
   area += cur_area;
 }
 
+void NormalSet::erase(int face_idx, Eigen::Vector3d normal, double cur_area) {
+	// Get current face_set size
+	int num_faces = face_set.size();
+	// Update avg_normal
+	avg_normal = (avg_normal*num_faces - normal) / (num_faces - 1);
+	// Remove last inserted face
+	face_set.erase(face_idx);
+	area -= cur_area;
+}
+
 void NormalSet::updateAvgNormal(Eigen::Vector3d new_normal){
   int num_faces = face_set.size();
   avg_normal = ((avg_normal * num_faces) + new_normal) / (num_faces + 1);
@@ -37,6 +47,7 @@ void NormalSet::updateAvgNormal(Eigen::Vector3d new_normal){
 void NormalSet::clearSet(){
   face_set.clear();
   avg_normal = Eigen::Vector3d::Zero();
+  current_id = 0;
 }
 
 void NormalSet::computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V) {
