@@ -9,6 +9,7 @@
 #include <igl/upsample.h>
 #include <igl/qslim.h>
 #include <igl/doublearea.h>
+#include <igl/readOFF.h>
 
 void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
 void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
@@ -21,11 +22,17 @@ int main(int argc, char *argv[])
   Eigen::MatrixXi F;
   Eigen::MatrixXd originalV;
   Eigen::MatrixXi originalF;
+  // Keep V, F used for merging
+  Eigen::MatrixXd mergeV;
+  Eigen::MatrixXi mergeF;
+
   // Load in a mesh
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/cube.obj", V, F);
   igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
   //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/cylinder.obj", V, F);
+  //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/spot_triangulated.obj", V, F);
+  int num_regions = 80;
 
   // Keep the original mesh
   originalV = V;
@@ -40,12 +47,12 @@ int main(int argc, char *argv[])
   // Initialization
   std::vector<NormalSet> normal_sets;
   std::set<int> painted_faces;
-  NormalSet painting_set; 
+  NormalSet painting_set;
   std::vector<int> fid;
 
   // Launch a viewer instance
   igl::viewer::Viewer viewer;
-  
+
   // Set the vertices and faces for the viewer
   viewer.data.set_mesh(V, F);
   // Color matrix and vector
@@ -53,7 +60,6 @@ int main(int argc, char *argv[])
   Eigen::Vector3d painting_color;
 
   bool painting = false;
-
   viewer.callback_key_pressed =
     [&](igl::viewer::Viewer & viewer, unsigned char key, int mod)->bool
    {
@@ -63,60 +69,67 @@ int main(int argc, char *argv[])
         return false;
       case 'p':
       {
-		Eigen::MatrixXd PC = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
-		viewer.data.set_colors(PC);
-		painting = !painting; // toggle
-		painting_color = randcolor();
+    		Eigen::MatrixXd PC = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
+    		viewer.data.set_colors(PC);
+    		painting = !painting; // toggle
+    		painting_color = randcolor();
         painting_set = NormalSet(true);
         break;
       }
-	  case 'b': {
-		  if (painting == true && fid.size()) {
-			  int rm_fid = fid.back();
-			  painting_set.erase(rm_fid, N.row(rm_fid), doubA(rm_fid) / 2.0);
-			  painted_faces.erase(rm_fid);
-			  C.row(rm_fid) = Eigen::Vector3d::Constant(1);
-			  fid.pop_back();
-			  viewer.data.set_colors(C);
-		  }
-		  break;
-	  }
+  	  case 'b': {
+  		  if (painting == true && fid.size()) {
+  			  int rm_fid = fid.back();
+  			  painting_set.erase(rm_fid, N.row(rm_fid), doubA(rm_fid) / 2.0);
+  			  painted_faces.erase(rm_fid);
+  			  C.row(rm_fid) = Eigen::Vector3d::Constant(1);
+  			  fid.pop_back();
+  			  viewer.data.set_colors(C);
+  		  }
+  		  break;
+  	  }
       case 'd':
       {
-		if (painting == true) {
-		    normal_sets.push_back(painting_set);
-		    std::cout << "Done Painting Set " << painting_set.id << std::endl;
-			for (std::set<int>::iterator iter = painting_set.face_set.begin(); iter != painting_set.face_set.end(); iter++) {
-			    std::cout << *iter << std::endl;
-			}
-			std::cout << "normal_sets size: " << normal_sets.size() << std::endl;
+  		if (painting == true) {
+  		    normal_sets.push_back(painting_set);
+  		    std::cout << "Done Painting Set " << painting_set.id << std::endl;
+    			for (std::set<int>::iterator iter = painting_set.face_set.begin(); iter != painting_set.face_set.end(); iter++) {
+    			    std::cout << *iter << std::endl;
+    			}
+    			std::cout << "normal_sets size: " << normal_sets.size() << std::endl;
 
-			// initialize new painting_set
-			painting_color = randcolor();
-			painting_set = NormalSet(true);
-		}
-        break;
+    			// initialize new painting_set
+    			painting_color = randcolor();
+    			painting_set = NormalSet(true);
+    		}
+          break;
       }
       case 's':
       {
         view_straightened_mesh(V, F, normal_sets, viewer);
         painting = false;
-		V = originalV;
-		F = originalF;
+    		V = originalV;
+    		F = originalF;
         break;
       }
       case 'n':
       {
         compute_normal_sets(F, V, normal_sets, painted_faces);
-		color_normal_sets(V, F, normal_sets, viewer);
+		    color_normal_sets(V, F, normal_sets, viewer);
+
+        mergeV = V;
+        mergeF = F;
         painting = false;
         break;
       }
       case 'm':
       {
-        mergeNormalSets(V, F, normal_sets);
-        color_normal_sets(V, F, normal_sets, viewer);
+        mergeNormalSets(mergeV, mergeF, normal_sets, num_regions);
+        color_normal_sets(mergeV, mergeF, normal_sets, viewer);
+
+        view_straightened_mesh(V, F, normal_sets, viewer);
+        num_regions = fmax(num_regions - 10, 1); // don't go negative
         painting = false;
+
         break;
       }
       case 'q':
@@ -124,29 +137,29 @@ int main(int argc, char *argv[])
         preprocess_mesh(V, F);
         viewer.data.clear();
         viewer.data.set_mesh(V, F);
-		
-		// re-initialize everything
-		C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
-		igl::per_face_normals(V, F, Eigen::Vector3d(1, 1, 1).normalized(), N);
-		igl::doublearea(V, F, doubA);
-		painting = false;
-		break;
+
+    		// re-initialize everything
+    		C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
+    		igl::per_face_normals(V, F, Eigen::Vector3d(1, 1, 1).normalized(), N);
+    		igl::doublearea(V, F, doubA);
+    		painting = false;
+    		break;
       }
-	  case 'r':
-	  {
-		  V = originalV;
-		  F = originalF;
-		  viewer.data.clear();
-		  viewer.core.show_lines = true;
-		  viewer.data.set_mesh(V, F);
-		  // Clean everything
-		  normal_sets.clear();
-		  painted_faces.clear();
-		  painting_set.clearSet();
-		  C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
-		  painting = false;
-		  break;
-	  }
+  	  case 'r':
+  	  {
+  		  V = originalV;
+  		  F = originalF;
+  		  viewer.data.clear();
+  		  viewer.core.show_lines = true;
+  		  viewer.data.set_mesh(V, F);
+  		  // Clean everything
+  		  normal_sets.clear();
+  		  painted_faces.clear();
+  		  painting_set.clearSet();
+  		  C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
+  		  painting = false;
+  		  break;
+  	  }
     }
     return true;
   };
@@ -177,7 +190,7 @@ int main(int argc, char *argv[])
   std::cout<<R"(
 (step 0: press 'q' preprocess mesh by decimating it)
 step 1: press 'p' activate painting mode
-		- click on face to paint face 
+		- click on face to paint face
 		- press 'd' to start a new group
 		- press 'b' to unpaint the last painted face
 step 2: press 'n' compute normal set grouping (based on similar normal)
@@ -215,7 +228,7 @@ void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<Norma
   // each normal set has a different color
   for(std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++){
     std::set<int> normal_set = (*set).face_set;
-	Eigen::Vector3d set_color = randcolor();
+	  Eigen::Vector3d set_color = randcolor();
     std::set<int>::iterator face;
     for (face = normal_set.begin(); face != normal_set.end(); ++face){
         int face_idx = *face;
@@ -238,18 +251,13 @@ void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<
   viewer.data.clear();
   viewer.data.set_mesh(newV, newF);
   // viewer.data.add_points(newV, Eigen::RowVector3d(1,0,0));
-  viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0.54, 0.47, 0.39)); // brown for edges
+  //viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0.54, 0.47, 0.39)); // brown for edges
+  viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0,0,0));
 
   // white faces for joints
   Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,1);
-  //Eigen::MatrixXd C = Eigen::MatrixXd(newF.rows(),3);
-  for(int sphere_idx = 0; sphere_idx < newF.rows() / 20; sphere_idx++){
-    // lookup the cost of that sphere
-    double cost = Cost(sphere_idx);
-    for(int f_idx = 0; f_idx < 20; f_idx++){
-      C.row((sphere_idx*20)+f_idx) *= cost;
-    }
-  }
   viewer.data.set_colors(C);
   viewer.core.show_lines = false; // don't show wireframe on joints
+  std::cout << "Num Joints: " << newV.rows() / 12 << std::endl;
+  std::cout << "Num Rods: " << P1.rows() << std::endl;
 }

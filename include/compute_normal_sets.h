@@ -35,5 +35,5 @@ void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V
 
 void removeVertex(std::vector<int> &newVertices, std::vector<NormalSet> &normal_sets, int v_idx);
 
-void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets);
+void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, int num_regions);
 #endif

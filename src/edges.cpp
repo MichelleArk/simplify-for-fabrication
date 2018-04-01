@@ -6,6 +6,6 @@ RegionEdge::RegionEdge(int i, int j, double normal, double area, double perimete
 	normal_weight = normal;
 	area_weight = area;
 	perimeter_weight = perimeter;
-	weight = area * normal * perimeter;
+	weight = area * (normal*normal) * perimeter;
 		//area*0.0001 + perimeter) / 3.0; // check later
 };

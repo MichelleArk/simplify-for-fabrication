@@ -13,8 +13,8 @@ class NormalSet {
     void addToSet(int face_idx, Eigen::Vector3d normal, double cur_area);
     void updateAvgNormal(Eigen::Vector3d normal);
     void clearSet();
-	void NormalSet::erase(int face_idx, Eigen::Vector3d normal, double cur_area);
-	void computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V);
+	  void erase(int face_idx, Eigen::Vector3d normal, double cur_area);
+	  void computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V);
   	void simplifyBoundary(std::set<int> new_bnd);
 
   	int id;

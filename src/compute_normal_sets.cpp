@@ -204,7 +204,9 @@ void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet>
     					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
     						double area_weight = fmin(set1.area, set2.area) / total_area;
                 if(area_weight < 4.0 / F.rows()){ // one region is less than 4 faces
-                  area_weight = 0.00001;
+                  area_weight = 0.0000001;
+                }else if (area_weight > 30.0 / F.rows()){
+                  area_weight = 20;
                 }else{
                   area_weight = 1;
                 }
@@ -227,7 +229,7 @@ void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet>
 	}
 }
 
-void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets) {
+void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, int num_regions) {
 	double threshold = 0.5;
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
@@ -236,10 +238,11 @@ void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 	double min_weight;
 	std::vector<NormalSet>::iterator set_i, set_j;
 	getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+
 	int seti_size = (*set_i).face_set.size();
 	int setj_size = (*set_j).face_set.size();
 
-	while (normal_sets.size() > 40) {//min_weight < threshold) {
+	while (normal_sets.size() > num_regions) {//min_weight < threshold) {
 		for (std::set<int>::iterator set_iter = (*set_j).face_set.begin(); set_iter != (*set_j).face_set.end(); set_iter++) {
 			(*set_i).face_set.insert(*set_iter);
 		}
@@ -250,6 +253,10 @@ void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 			(*set).computeBoundary(F, V);
 		}
 		getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+    if(min_weight == -1){
+      // nothing to merge
+      return;
+    }
 		std::cout << "min weight " << min_weight << std::endl;
 		seti_size = (*set_i).face_set.size();
 		setj_size = (*set_j).face_set.size();
@@ -325,7 +332,8 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
   int v_step = icoV.rows(); int f_step = icoF.rows();
   //icoV *= 0.001; // scale for bunny
-  icoV *= 2;
+  icoV *= 2; // scale for face
+  //icoV *= 0.01;
   newV.resize(v_step * icoCenters.size(),3);
   newF.resize(f_step * icoCenters.size(),3);
 
