@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
   // Launch a viewer instance
   igl::viewer::Viewer viewer;
 
+  viewer.core.background_color = Eigen::Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
   // Set the vertices and faces for the viewer
   viewer.data.set_mesh(V, F);
   // Color matrix and vector
@@ -274,7 +275,7 @@ void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<
   viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0,0,0));
 
   // white faces for joints
-  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,1);
+  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,0.5);
   viewer.data.set_colors(C);
   viewer.core.show_lines = false; // don't show wireframe on joints
   std::cout << "Num Joints: " << newV.rows() / 12 << std::endl;

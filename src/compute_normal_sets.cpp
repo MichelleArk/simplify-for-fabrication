@@ -335,7 +335,8 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
   int v_step = icoV.rows(); int f_step = icoF.rows();
-  icoV *= 0.001; // scale for bunny
+  //icoV *= 0.001; // scale for bunny
+  icoV *= 0.002;
   //icoV *= 2; // scale for face
   //icoV *= 0.01; // scale for spot
   //icoV *= 0.2; // scale for teapot
