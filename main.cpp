@@ -117,7 +117,8 @@ int main(int argc, char *argv[])
         myfile.open("output_bunny.txt");
         myfile << "V: " << newVCenters.rows() << "\n";
         for(int v_idx = 0; v_idx < newVCenters.rows(); v_idx++){
-          myfile << V(v_idx, 0) << ", " << V(v_idx, 1) << ", " << V(v_idx,2) << "\n";
+          //int new_v_idx = newVCenters[v_idx]
+          myfile << newVCenters(v_idx, 0) << ", " << newVCenters(v_idx, 1) << ", " << newVCenters(v_idx,2) << "\n";
         }
         myfile << "E: " << E.rows() << "\n";
         for(int e_idx = 0; e_idx < E.rows(); e_idx++){
