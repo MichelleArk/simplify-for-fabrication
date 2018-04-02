@@ -166,9 +166,9 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
 					}
 					if (endpoint1 != endpoint2){
 						endpoints.push_back(endpoint1);
-					if(!set2_painted){ // to avoid pushing back endpoint2 twice
-						endpoints.push_back(endpoint2);
-					}
+  					if(!set2_painted){ // to avoid pushing back endpoint2 twice
+  						endpoints.push_back(endpoint2);
+  					}
 						foundSharedVertices.erase(endpoint1);
 						foundSharedVertices.erase(endpoint2);
 						//i = fmin(i+f+1, bnd1.size()-1); // double check
@@ -180,7 +180,7 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
   return (endpoints.size() > 0);
 }
 
-void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, double &min_weight, std::vector<NormalSet>::iterator & set_i, std::vector<NormalSet>::iterator & set_j) {
+void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, double &min_weight, std::vector<NormalSet>::iterator & set_i, std::vector<NormalSet>::iterator & set_j, int num_regions) {
 	// Compute doublearea
 	Eigen::VectorXd doubA;
 	igl::doublearea(V, F, doubA);
@@ -203,12 +203,12 @@ void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet>
     				if (set1.id < set2.id) { // To avoid adding ij and ji twice
     					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
     						double area_weight = fmin(set1.area, set2.area) / total_area;
-                if(area_weight < 4.0 / F.rows()){ // one region is less than 4 faces
+                if(area_weight < ((F.rows() / (double) num_regions) / 4.0) / F.rows()){ // one region is less than 4 faces
                   area_weight = 0.0000001;
-                }else if (area_weight > 30.0 / F.rows()){
+                }else if (fmax(set1.area, set2.area) / total_area > ((F.rows() / (double) num_regions) * 2.0) / F.rows()){
                   area_weight = 20;
                 }else{
-                  area_weight = 1;
+                  area_weight = 10;
                 }
     						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
     						set1.avg_normal.normalize();
@@ -230,14 +230,13 @@ void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet>
 }
 
 void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, int num_regions) {
-	double threshold = 0.5;
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
 		(*set).computeBoundary(F, V);
 	}
 	double min_weight;
 	std::vector<NormalSet>::iterator set_i, set_j;
-	getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+	getMergeSets(V, F, normal_sets, min_weight, set_i, set_j, num_regions);
 
 	int seti_size = (*set_i).face_set.size();
 	int setj_size = (*set_j).face_set.size();
@@ -252,7 +251,7 @@ void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 		for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
 			(*set).computeBoundary(F, V);
 		}
-		getMergeSets(V, F, normal_sets, min_weight, set_i, set_j);
+		getMergeSets(V, F, normal_sets, min_weight, set_i, set_j, num_regions);
     if(min_weight == -1){
       // nothing to merge
       return;
@@ -264,8 +263,7 @@ void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 
 }
 
-
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost)
+void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost, Eigen::MatrixXd &newVCenters, Eigen::MatrixXi &E)
 {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
@@ -275,7 +273,6 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 	// Find longest shared boundaries
 	std::set<int> newVertices;
 	std::set<int> foundSharedVertices;
-	int F_size = 0;
 	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
 		std::set<int> boundingVertices;
 		NormalSet set1 = *iter1;
@@ -288,25 +285,33 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
 				if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
 					for (int i = 0; i < endpoints.size(); i++) {
 						boundingVertices.insert(endpoints[i]);
-						newVertices.insert(endpoints[i]);
 					}
 				}
 			}
 		}
 		if (boundingVertices.size() > 2) {// Fixed by adding this condition, still need to figure out why there are cases = 2?
-			F_size += (boundingVertices.size() - 2);
       //can't directly update the original bnd becasue we still need to use it for comparison (iter2)
 			set1.simplifyBoundary(boundingVertices);
       *iter1 = set1;
-		}
+      // prevents adding 'floating' bounding vertices of size 2
+      for (std::set<int>::iterator b_iter = boundingVertices.begin(); b_iter != boundingVertices.end(); b_iter++) {
+        newVertices.insert(*b_iter);
+      }
+		} else{
+      // no bounding vertices => this normal set is fully contained by another normal set
+      (*iter1).simplified_bnd.resize(0);
+      (*iter1).bnd.resize(0);
+    }
 	}
+
   // make newVertices a vector, not a set
   std::vector<int> newVerticesVector;
   newVerticesVector.assign(newVertices.begin(), newVertices.end());
   // newV and newF store V, F to represent icosahedrons centered at newVertices
-  createApproxSpheres(newVerticesVector, V, newV, newF);
+  createApproxSpheres(newVerticesVector, V, newV, newF); // some points in normal_sets, not in newVertices vector
   // P1, P2 store edges between centers in newVertices based on normal_sets
-  connectApproxSpheres(normal_sets, V, P1, P2);
+    std::cout << "gets here:before connect" << std::endl;
+  connectApproxSpheres(newVerticesVector, normal_sets, V, P1, P2, newVCenters, E);
   // compute cost per vertex
   int min_cost_vid = -1;
   double min_cost = -1;
@@ -331,9 +336,10 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
   int v_step = icoV.rows(); int f_step = icoF.rows();
-  //icoV *= 0.001; // scale for bunny
-  icoV *= 2; // scale for face
-  //icoV *= 0.01;
+  icoV *= 0.001; // scale for bunny
+  //icoV *= 2; // scale for face
+  //icoV *= 0.01; // scale for spot
+  //icoV *= 0.2; // scale for teapot
   newV.resize(v_step * icoCenters.size(),3);
   newF.resize(f_step * icoCenters.size(),3);
 
@@ -363,7 +369,7 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   }
 }
 
-void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2)
+void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::MatrixXd &newVCenters, Eigen::MatrixXi &E)
 {
   // This is very hacky and needs to be written better. twice as slow as it should be
   int E_size = 0;
@@ -379,7 +385,21 @@ void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &
       int v1 = cur_set.simplified_bnd(i);
       int v2 = cur_set.simplified_bnd((i+1) % cur_set.simplified_bnd.size());
 
-      if(!seenEdges(v1, v2)){
+      bool v1found = false;
+      bool v2found = false;
+
+      for(int v_idx = 0; v_idx < icoCenters.size(); v_idx++){
+        if(icoCenters[v_idx] == v1){
+          v1found = true;
+        }
+        if(icoCenters[v_idx] == v2){
+          v2found = true;
+        }
+      }
+      if(!v1found || !v2found){
+        std::cout << "PROBLEM" << std::endl;
+      }
+      if(!seenEdges(v1, v2) && !seenEdges(v2, v1)){
         P1triplets.push_back(V(v1,0));
         P1triplets.push_back(V(v1,1));
         P1triplets.push_back(V(v1,2));
@@ -401,6 +421,24 @@ void connectApproxSpheres(std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &
   for(int e_idx = 0; e_idx < (E_size*3); e_idx+=3){
     P1.row(e_idx/3) = Eigen::Vector3d(P1triplets[e_idx], P1triplets[e_idx+1], P1triplets[e_idx+2]);
     P2.row(e_idx/3) = Eigen::Vector3d(P2triplets[e_idx], P2triplets[e_idx+1], P2triplets[e_idx+2]);
+  }
+
+  // write out to final format
+  newVCenters.resize(icoCenters.size(), 3);
+  for(int i = 0; i < icoCenters.size(); i++){
+    newVCenters.row(i) = V.row(icoCenters[i]);
+  }
+
+  // final format
+  E.resize(E_size, 2);
+  int e_idx = 0;
+  for(int i = 0; i < V.rows(); i++){
+    for(int j = i; j < V.rows(); j++){
+      if(seenEdges(i,j) == 1){
+        E.row(e_idx) << i, j;
+        e_idx++;
+      }
+    }
   }
 }
 

@@ -10,8 +10,9 @@
 #include <igl/qslim.h>
 #include <igl/doublearea.h>
 #include <igl/readOFF.h>
+#include <fstream>
 
-void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
+void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges);
 void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
 void preprocess_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F);
 Eigen::Vector3d randcolor();
@@ -28,10 +29,13 @@ int main(int argc, char *argv[])
 
   // Load in a mesh
   //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/cube.obj", V, F);
-  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
-  //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
+  //igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/max-face-low-res.obj", V, F);
+  igl::read_triangle_mesh(argc>1 ? argv[1] : "../shared/data/bunny.off", V, F);
   //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/cylinder.obj", V, F);
   //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/spot_triangulated.obj", V, F);
+  //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/spot_control_mesh.obj", V, F);
+  //igl::read_triangle_mesh("../shared/data/teapot-low.obj", V, F);
+  //igl::read_triangle_mesh("../shared/data/teapot.obj", V, F);
   int num_regions = 80;
 
   // Keep the original mesh
@@ -58,6 +62,10 @@ int main(int argc, char *argv[])
   // Color matrix and vector
   Eigen::MatrixXd C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
   Eigen::Vector3d painting_color;
+
+  // final outputs for writing
+  Eigen::MatrixXd newVCenters;
+  Eigen::MatrixXi E;
 
   bool painting = false;
   viewer.callback_key_pressed =
@@ -103,12 +111,19 @@ int main(int argc, char *argv[])
     		}
           break;
       }
-      case 's':
+      case 'w':
       {
-        view_straightened_mesh(V, F, normal_sets, viewer);
-        painting = false;
-    		V = originalV;
-    		F = originalF;
+        std::ofstream myfile;
+        myfile.open("output_bunny.txt");
+        myfile << "V: " << newVCenters.rows() << "\n";
+        for(int v_idx = 0; v_idx < newVCenters.rows(); v_idx++){
+          myfile << V(v_idx, 0) << ", " << V(v_idx, 1) << ", " << V(v_idx,2) << "\n";
+        }
+        myfile << "E: " << E.rows() << "\n";
+        for(int e_idx = 0; e_idx < E.rows(); e_idx++){
+          myfile << E(e_idx, 0) << ", " << E(e_idx, 1) << "\n";
+        }
+        myfile.close();
         break;
       }
       case 'n':
@@ -121,13 +136,14 @@ int main(int argc, char *argv[])
         painting = false;
         break;
       }
-      case 'm':
+      case 's':
       {
+        std::cout << "num_regions: " << num_regions << std::endl;
         mergeNormalSets(mergeV, mergeF, normal_sets, num_regions);
         color_normal_sets(mergeV, mergeF, normal_sets, viewer);
 
-        view_straightened_mesh(V, F, normal_sets, viewer);
-        num_regions = fmax(num_regions - 10, 1); // don't go negative
+        view_straightened_mesh(V, F, normal_sets, viewer, newVCenters, E);
+        num_regions = fmax(num_regions - 5, 1); // don't go negative
         painting = false;
 
         break;
@@ -149,6 +165,7 @@ int main(int argc, char *argv[])
   	  {
   		  V = originalV;
   		  F = originalF;
+
   		  viewer.data.clear();
   		  viewer.core.show_lines = true;
   		  viewer.data.set_mesh(V, F);
@@ -156,6 +173,7 @@ int main(int argc, char *argv[])
   		  normal_sets.clear();
   		  painted_faces.clear();
   		  painting_set.clearSet();
+        num_regions = 80;
   		  C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
   		  painting = false;
   		  break;
@@ -194,7 +212,7 @@ step 1: press 'p' activate painting mode
 		- press 'd' to start a new group
 		- press 'b' to unpaint the last painted face
 step 2: press 'n' compute normal set grouping (based on similar normal)
-step 3: press 'm' merge normal set
+step 3: press 's' merge normal set
 step 4: press 's' show simplified result
 press 'r' reset
   )";
@@ -239,13 +257,14 @@ void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<Norma
   viewer.data.set_colors(C);
 }
 
-void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer){
+void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges){
   // Straighten edges
   Eigen::MatrixXd newV;
   Eigen::MatrixXi newF;
   Eigen::MatrixXd P1, P2;
   Eigen::VectorXd Cost;
-  straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost);
+  std::cout << "gets here" << std::endl;
+  straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost, newVCenters, Edges);
 
   // Create a libigl Viewer object
   viewer.data.clear();

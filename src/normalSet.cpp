@@ -44,6 +44,7 @@ void NormalSet::updateAvgNormal(Eigen::Vector3d new_normal){
   int num_faces = face_set.size();
   avg_normal = ((avg_normal * num_faces) + new_normal) / (num_faces + 1);
 }
+
 void NormalSet::clearSet(){
   face_set.clear();
   avg_normal = Eigen::Vector3d::Zero();
