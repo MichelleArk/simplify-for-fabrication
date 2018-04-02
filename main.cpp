@@ -263,7 +263,6 @@ void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<
   Eigen::MatrixXi newF;
   Eigen::MatrixXd P1, P2;
   Eigen::VectorXd Cost;
-  std::cout << "gets here" << std::endl;
   straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost, newVCenters, Edges);
 
   // Create a libigl Viewer object

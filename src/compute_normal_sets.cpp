@@ -310,7 +310,6 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
   // newV and newF store V, F to represent icosahedrons centered at newVertices
   createApproxSpheres(newVerticesVector, V, newV, newF); // some points in normal_sets, not in newVertices vector
   // P1, P2 store edges between centers in newVertices based on normal_sets
-    std::cout << "gets here:before connect" << std::endl;
   connectApproxSpheres(newVerticesVector, normal_sets, V, P1, P2, newVCenters, E);
   // compute cost per vertex
   int min_cost_vid = -1;
@@ -374,11 +373,13 @@ void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &n
   // This is very hacky and needs to be written better. twice as slow as it should be
   int E_size = 0;
   Eigen::MatrixXi seenEdges = Eigen::MatrixXi::Zero(V.rows(), V.rows());
+  Eigen::MatrixXi seenEdgesRelnewV = Eigen::MatrixXi::Zero(icoCenters.size(), icoCenters.size());
 
   typedef Eigen::Triplet< double > Triplet;
   std::vector< double > P1triplets; // to store connecting triangles
   std::vector< double > P2triplets;
 
+  std::cout << icoCenters.size() << std::endl;
   for (std::vector<NormalSet>::iterator iter = normal_sets.begin(); iter != normal_sets.end(); iter++) {
     NormalSet cur_set = *iter;
     for (int i = 0; i < cur_set.simplified_bnd.size(); i++) {
@@ -386,19 +387,24 @@ void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &n
       int v2 = cur_set.simplified_bnd((i+1) % cur_set.simplified_bnd.size());
 
       bool v1found = false;
+      int v1foundidx = -1;
       bool v2found = false;
+      int v2foundidx = -1;
 
       for(int v_idx = 0; v_idx < icoCenters.size(); v_idx++){
         if(icoCenters[v_idx] == v1){
           v1found = true;
+          v1foundidx = v_idx;
         }
         if(icoCenters[v_idx] == v2){
           v2found = true;
+          v2foundidx = v_idx;
         }
       }
       if(!v1found || !v2found){
         std::cout << "PROBLEM" << std::endl;
       }
+
       if(!seenEdges(v1, v2) && !seenEdges(v2, v1)){
         P1triplets.push_back(V(v1,0));
         P1triplets.push_back(V(v1,1));
@@ -412,6 +418,10 @@ void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &n
         seenEdges(v1, v2) = 1;
         seenEdges(v2, v1) = 1;
         E_size += 1;
+
+        // Mark as seen in rel indexing of icoCenters, ie newV
+        seenEdgesRelnewV(v1foundidx, v2foundidx) = 1;
+        seenEdgesRelnewV(v2foundidx, v1foundidx) = 1;
       }
     }
   }
@@ -432,9 +442,9 @@ void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &n
   // final format
   E.resize(E_size, 2);
   int e_idx = 0;
-  for(int i = 0; i < V.rows(); i++){
-    for(int j = i; j < V.rows(); j++){
-      if(seenEdges(i,j) == 1){
+  for(int i = 0; i < seenEdgesRelnewV.rows(); i++){
+    for(int j = i; j < seenEdgesRelnewV.rows(); j++){
+      if(seenEdgesRelnewV(i,j) == 1){
         E.row(e_idx) << i, j;
         e_idx++;
       }
