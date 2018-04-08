@@ -1,9 +1,7 @@
-#include "Edge.h"
 #include "euler_characteristic.h"
 #include <igl/read_triangle_mesh.h>
 #include <igl/viewer/Viewer.h>
 #include "compute_normal_sets.h"
-#include <normalSet.h>
 #include <vector>
 #include <igl/unproject_onto_mesh.h>
 #include <igl/upsample.h>
@@ -11,6 +9,8 @@
 #include <igl/doublearea.h>
 #include <igl/readOFF.h>
 #include <fstream>
+#include <normalSet.h>
+#include <RAG.h>
 
 void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges);
 void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
@@ -36,7 +36,6 @@ int main(int argc, char *argv[])
   //igl::read_triangle_mesh(argc > 1 ? argv[1] : "../shared/data/spot_control_mesh.obj", V, F);
   //igl::read_triangle_mesh("../shared/data/teapot-low.obj", V, F);
   //igl::read_triangle_mesh("../shared/data/teapot.obj", V, F);
-  int num_regions = 80;
 
   // Keep the original mesh
   originalV = V;
@@ -53,6 +52,7 @@ int main(int argc, char *argv[])
   std::set<int> painted_faces;
   NormalSet painting_set;
   std::vector<int> fid;
+  RAG rag;
 
   // Launch a viewer instance
   igl::viewer::Viewer viewer;
@@ -128,29 +128,36 @@ int main(int argc, char *argv[])
         myfile.close();
         break;
       }
-      case 'n':
+      case 'n': // NORMAL SETS + CREATE RAG
       {
         compute_normal_sets(F, V, normal_sets, painted_faces);
 		    color_normal_sets(V, F, normal_sets, viewer);
+
+        // create RAG
+        rag = RAG(normal_sets, V, F);
 
         mergeV = V;
         mergeF = F;
         painting = false;
         break;
       }
-      case 's':
+      case 's': // SIMPLIFY
       {
-        std::cout << "num_regions: " << num_regions << std::endl;
-        mergeNormalSets(mergeV, mergeF, normal_sets, num_regions);
-        color_normal_sets(mergeV, mergeF, normal_sets, viewer);
-
-        view_straightened_mesh(V, F, normal_sets, viewer, newVCenters, E);
-        num_regions = fmax(num_regions - 5, 1); // don't go negative
+        if(rag.regions.size() > 80){
+          while(rag.regions.size() > 80){
+            rag.MergeMinCostRegions(1, 80);
+          }
+        }else{
+          target_regions = rag.regions.size() - 5; // don't go negative
+          if(rag.regions.size() - 5 > 0){
+            rag.MergeMinCostRegions(5, target_regions);
+          }
+        }
+        view_straightened_mesh(V, F, rag.regions, viewer, newVCenters, E);
         painting = false;
-
         break;
       }
-      case 'q':
+      case 'q': // QSLIM
       {
         preprocess_mesh(V, F);
         viewer.data.clear();
@@ -163,7 +170,7 @@ int main(int argc, char *argv[])
     		painting = false;
     		break;
       }
-  	  case 'r':
+  	  case 'r': // RESET
   	  {
   		  V = originalV;
   		  F = originalF;

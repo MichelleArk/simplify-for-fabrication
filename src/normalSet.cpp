@@ -51,7 +51,7 @@ void NormalSet::clearSet(){
   current_id = 0;
 }
 
-void NormalSet::computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V) {
+void NormalSet::computeBoundary(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V) {
   std::set<int> normal_set = face_set;
   Eigen::MatrixXi F_set(normal_set.size(), 3);
   std::set<int>::iterator face;

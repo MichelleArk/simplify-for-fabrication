@@ -14,7 +14,7 @@ class NormalSet {
     void updateAvgNormal(Eigen::Vector3d normal);
     void clearSet();
 	  void erase(int face_idx, Eigen::Vector3d normal, double cur_area);
-	  void computeBoundary(Eigen::MatrixXi &F, Eigen::MatrixXd &V);
+	  void computeBoundary(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V);
   	void simplifyBoundary(std::set<int> new_bnd);
 
   	int id;

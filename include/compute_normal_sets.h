@@ -9,7 +9,6 @@
 #include <queue>
 #include <igl/per_face_normals.h>
 #include "normalSet.h"
-#include "Edge.h"
 #include <igl/read_triangle_mesh.h>
 
 void compute_normal_sets( const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std::vector<NormalSet>& all_normal_sets, std::set<int>& visited);
@@ -23,8 +22,6 @@ std::map<std::string, int> preprocess_edge_to_face(const Eigen::MatrixXi &F);
 bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painted, bool set2_painted, std::vector<int> &endpoints, std::set<int> &foundSharedVertices, Eigen::MatrixXd &V, double &shared_bnd_length);
 // TODO: move cost outta here
 
-void getMergeSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, double &min_weight, NormalSet & set_i, NormalSet & set_j, int num_regions);
-
 void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd &Cost, Eigen::MatrixXd &newVCenters, Eigen::MatrixXi &E);
 
 void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF);
@@ -35,5 +32,4 @@ void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V
 
 void removeVertex(std::vector<int> &newVertices, std::vector<NormalSet> &normal_sets, int v_idx);
 
-void mergeNormalSets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, int num_regions);
 #endif
