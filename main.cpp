@@ -11,6 +11,7 @@
 #include <fstream>
 #include <normalSet.h>
 #include <RAG.h>
+#include <Wireframe.h>
 
 void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges);
 void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
   NormalSet painting_set;
   std::vector<int> fid;
   RAG rag;
+  Wireframe wireframe;
 
   // Launch a viewer instance
   igl::viewer::Viewer viewer;
@@ -135,7 +137,7 @@ int main(int argc, char *argv[])
 
         // create RAG
         rag = RAG(normal_sets, V, F);
-
+        wireframe = Wireframe(V, F);
         mergeV = V;
         mergeF = F;
         painting = false;
@@ -148,7 +150,7 @@ int main(int argc, char *argv[])
             rag.MergeMinCostRegions(1, 80);
           }
         }else{
-          target_regions = rag.regions.size() - 5; // don't go negative
+          int target_regions = rag.regions.size() - 5; // don't go negative
           if(rag.regions.size() - 5 > 0){
             rag.MergeMinCostRegions(5, target_regions);
           }
@@ -182,7 +184,6 @@ int main(int argc, char *argv[])
   		  normal_sets.clear();
   		  painted_faces.clear();
   		  painting_set.clearSet();
-        num_regions = 80;
   		  C = Eigen::MatrixXd::Constant(F.rows(), 3, 1);
   		  painting = false;
   		  break;
@@ -222,7 +223,8 @@ step 1: press 'p' activate painting mode
 		- press 'b' to unpaint the last painted face
 step 2: press 'n' compute normal set grouping (based on similar normal)
 step 3: press 's' merge normal set
-step 4: press 's' show simplified result
+step 4: press 'w' to write the resulting joint positions and connecting edges
+step 5: press 'r' to reset
 press 'r' reset
   )";
 
@@ -271,14 +273,11 @@ void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<
   Eigen::MatrixXd newV;
   Eigen::MatrixXi newF;
   Eigen::MatrixXd P1, P2;
-  Eigen::VectorXd Cost;
-  straightenEdges(V, F, normal_sets, newV, newF, P1, P2, Cost, newVCenters, Edges);
+  straightenEdges(V, F, normal_sets, newV, newF, P1, P2, newVCenters, Edges);
 
   // Create a libigl Viewer object
   viewer.data.clear();
   viewer.data.set_mesh(newV, newF);
-  // viewer.data.add_points(newV, Eigen::RowVector3d(1,0,0));
-  //viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0.54, 0.47, 0.39)); // brown for edges
   viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0,0,0));
 
   // white faces for joints

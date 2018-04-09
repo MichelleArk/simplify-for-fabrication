@@ -15,10 +15,10 @@ RAG::RAG(std::vector<NormalSet> normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXi
   std::vector< Triplet > triplets;
 	// Compute edge cost if find shared boundaries
 	std::set<int> foundSharedVertices;
-	for (std::vector<NormalSet>::iterator iter1 = normal_sets.begin(); iter1 != normal_sets.end(); iter1++) {
+	for (std::vector<NormalSet>::iterator iter1 = regions.begin(); iter1 != regions.end(); iter1++) {
 		NormalSet set1 = *iter1;
     if(!set1.painted){ // don't merge painted sets
-  		for (std::vector<NormalSet>::iterator iter2 = normal_sets.begin(); iter2 != normal_sets.end(); iter2++) {
+  		for (std::vector<NormalSet>::iterator iter2 = regions.begin(); iter2 != regions.end(); iter2++) {
   			NormalSet set2 = *iter2;
         if(!set2.painted){
     			if (set1.id != set2.id) {
@@ -27,13 +27,15 @@ RAG::RAG(std::vector<NormalSet> normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXi
     				double shared_bnd_length;
     				if (set1.id < set2.id) { // To avoid adding ij and ji twice
     					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, V, shared_bnd_length)) {
+                // indicate that set1 and set 2 are neighbors
+                (*iter1).neighbors.insert(set2.id);
+                (*iter2).neighbors.insert(set1.id);
+
                 double area_weight = fmin(set1.area, set2.area) / _total_area;
                 if(area_weight < ((F.rows() / (double) num_regions) / 4.0) / F.rows()){ // one region is less than 4 faces
                   area_weight = 0.0000001;
-                }else if (fmax(set1.area, set2.area) / _total_area > ((F.rows() / (double) num_regions) * 2.0) / F.rows()){
-                  area_weight = 20;
                 }else{
-                  area_weight = 10;
+                  area_weight = 1;
                 }
     						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
     						set1.avg_normal.normalize();
@@ -70,6 +72,11 @@ void RAG::MergeMinCostRegions(int num_to_remove, int num_regions){
       (*set_i).face_set.insert(*set_iter);
     }
 
+    // Add set_j's nieghbors to be set_i's neighbors
+    for (std::set<int>::iterator set_iter = (*set_j).neighbors.begin(); set_iter != (*set_j).neighbors.end(); set_iter++) {
+      (*set_i).neighbors.insert(*set_iter);
+    }
+
     // Update set_i's normal
     (*set_i).avg_normal = ((*set_i).avg_normal*seti_size + (*set_j).avg_normal*setj_size) / (seti_size + setj_size);
 
@@ -86,7 +93,8 @@ void RAG::MergeMinCostRegions(int num_to_remove, int num_regions){
     }
 
     // Update cost at all neighbors of set_i and set_j with set_i
-    //UpdateEdgeCosts(seti_id, setj_id);
+    //UpdateEdgeCostsSmartly(seti_id, setj_id, (*set_i).neighbors);
+    // update all distances
     UpdateEdgeCosts(num_regions);
   }
 }
@@ -141,19 +149,17 @@ void RAG::UpdateEdgeCosts(int num_regions){
     				if (set1.id < set2.id) { // To avoid adding ij and ji twice
     					if (sharedBoundary(set1.bnd, set2.bnd, set1.painted, set2.painted, endpoints, foundSharedVertices, _V, shared_bnd_length)) {
                 double area_weight = fmin(set1.area, set2.area) / _total_area;
-                if(area_weight < ((_F.rows() / (double) num_regions) / 4.0) / _F.rows()){ // one region is less than 4 faces
+                double area_threshold =  ((_F.rows() / (double) num_regions) / 4.0) / _F.rows();
+                if(area_weight < area_threshold){ // one region is less than 4 faces
                   area_weight = 0.0000001;
-                }else if (fmax(set1.area, set2.area) / _total_area > ((_F.rows() / (double) num_regions) * 2.0) / _F.rows()){
-                  area_weight = 20;
                 }else{
-                  area_weight = 10;
+                  area_weight = 1;
                 }
     						double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
     						set1.avg_normal.normalize();
     						set2.avg_normal.normalize();
     						double normal_weight = (1.0 - set1.avg_normal.dot(set2.avg_normal));
                 double edge_cost = area_weight * (normal_weight*normal_weight) * perimeter_weight;
-
                 // Add mappings to edge_cost
                 triplets.push_back(Triplet(set1.id, set2.id, edge_cost));
     					}
@@ -165,38 +171,22 @@ void RAG::UpdateEdgeCosts(int num_regions){
 	}
   edge_costs.setFromTriplets(triplets.begin(), triplets.end());
 }
-void RAG::UpdateEdgeCosts(int set_remaining, int set_removed){
-  // Handle by case
-  for (int k=0; k < edge_costs.outerSize(); ++k){
-    for (Eigen::SparseMatrix<double>::InnerIterator it(edge_costs,k); it; ++it){
-      int set1_id = it.row();
-      int set2_id = it.col();
 
-      if(set1_id == set_remaining && set2_id != set_removed){ // set2 is neighbor of set that was kept
-        if(_removed_regions.find(set2_id) == _removed_regions.end()){
-          double new_edge_cost = GetEdgeCostBetweenRegions(set2_id, set_remaining);
-          edge_costs.coeffRef(set1_id, set2_id) = new_edge_cost;
-        }
-      }
-      if(set2_id == set_remaining && set1_id != set_removed){ // set1 is neighbor of set that was kept
-        if(_removed_regions.find(set1_id) == _removed_regions.end()){
-          double new_edge_cost = GetEdgeCostBetweenRegions(set1_id, set_remaining);
-          edge_costs.coeffRef(set1_id, set2_id) = new_edge_cost;
-        }
-      }
-      if(set1_id == set_removed){ // set2 is neighbor of set that was removed
-        if(set2_id != set_remaining && _removed_regions.find(set2_id) == _removed_regions.end()){
-          double new_edge_cost = GetEdgeCostBetweenRegions(set2_id, set_remaining);
-          edge_costs.coeffRef(set2_id, set_remaining) = new_edge_cost;
-        }
-      }
-      if(set2_id == set_removed){ // set1 is neighbor of set that was removed
-        if(set1_id != set_remaining && _removed_regions.find(set1_id) == _removed_regions.end()){
-          double new_edge_cost = GetEdgeCostBetweenRegions(set1_id, set_remaining);
-          edge_costs.coeffRef(set1_id, set_remaining) = new_edge_cost;
-        }
-      }
+// broken
+void RAG::UpdateEdgeCostsSmartly(int set_remaining, int set_removed, std::set<int> neighbors_to_update){
+
+  for (std::set<int>::iterator set_iter = neighbors_to_update.begin(); set_iter != neighbors_to_update.end(); set_iter++) {
+    // update cost between neighbor and remaining set unless neighbor has been removed
+    if(_removed_regions.find(*set_iter) == _removed_regions.end()){
+      double new_edge_cost = GetEdgeCostBetweenRegions(set_remaining, *set_iter);
+      edge_costs.coeffRef(set_remaining, *set_iter) = new_edge_cost;
+      edge_costs.coeffRef(*set_iter, set_remaining) = new_edge_cost;
     }
+  }
+
+  for(int j_idx = 0; j_idx < edge_costs.rows(); j_idx++){
+    edge_costs.coeffRef(set_removed, j_idx) = -1;
+    edge_costs.coeffRef(j_idx, set_removed) = -1;
   }
 }
 
@@ -222,10 +212,8 @@ double RAG::GetEdgeCostBetweenRegions(int region1_id, int region2_id){
     double area_weight = fmin(set1.area, set2.area) / _total_area;
     if(area_weight < ((_F.rows() / (double) regions.size()) / 4.0) / _F.rows()){ // one region is less than 4 faces
       area_weight = 0.0000001;
-    }else if (fmax(set1.area, set2.area) / _total_area > ((_F.rows() / (double) regions.size()) * 2.0) / _F.rows()){
-      area_weight = 20;
     }else{
-      area_weight = 10;
+      area_weight = 1;
     }
     double perimeter_weight = fmin(set1.perimeter, set2.perimeter) / shared_bnd_length;
     set1.avg_normal.normalize();

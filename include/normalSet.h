@@ -25,4 +25,7 @@ class NormalSet {
   	Eigen::VectorXi simplified_bnd;
   	double area;
   	double perimeter;
+
+    // for RAG
+    std::set<int> neighbors;
 };

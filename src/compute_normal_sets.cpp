@@ -4,7 +4,10 @@
 
 typedef Eigen::Triplet<int> T;
 
-void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std::vector<NormalSet>& all_normal_sets, std::set<int>& painted_faces)
+void compute_normal_sets(
+  const Eigen::MatrixXi &F,
+  const Eigen::MatrixXd &V,
+  std::vector<NormalSet>& all_normal_sets, std::set<int>& painted_faces)
 {
   std::map<std::string, int> edge_to_face = preprocess_edge_to_face(F);
 
@@ -79,7 +82,9 @@ void compute_normal_sets(const Eigen::MatrixXi &F, const Eigen::MatrixXd &V, std
   }
 }
 
-bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2)
+bool similar_normals(
+  Eigen::Vector3d n1,
+  Eigen::Vector3d n2)
 {
   double threshold = 0.95; // 30 degrees
   n1.normalize();
@@ -87,7 +92,10 @@ bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2)
   return n1.dot(n2) > threshold;
 }
 
-std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<std::string,int> edge_to_f)
+std::vector<int> get_neighbours(
+  const Eigen::MatrixXi &F,
+  int f_idx,
+  std::map<std::string,int> edge_to_f)
 {
   std::vector<int> neighbours;
 
@@ -110,7 +118,7 @@ std::vector<int> get_neighbours(const Eigen::MatrixXi &F, int f_idx, std::map<st
   return neighbours;
 }
 
-std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F )
+std::map<std::string, int> preprocess_edge_to_face(const Eigen::MatrixXi &F )
 {
   std::map<std::string, int> edge_to_f;
   int num_faces = F.rows();
@@ -128,7 +136,15 @@ std::map<std::string, int> preprocess_edge_to_face( const Eigen::MatrixXi &F )
   return edge_to_f;
 }
 
-bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painted, bool set2_painted, std::vector<int> &endpoints, std::set<int> &foundSharedVertices, Eigen::MatrixXd &V, double &shared_bnd_length)
+bool sharedBoundary(
+  Eigen::VectorXi bnd1,
+  Eigen::VectorXi bnd2,
+  bool set1_painted,
+  bool set2_painted,
+  std::vector<int> &endpoints,
+  std::set<int> &foundSharedVertices,
+  Eigen::MatrixXd &V,
+  double &shared_bnd_length)
 {
 	shared_bnd_length = 0;
 	std::set<int> localFoundSharedVertices;
@@ -183,7 +199,16 @@ bool sharedBoundary(Eigen::VectorXi bnd1, Eigen::VectorXi bnd2, bool set1_painte
   return (endpoints.size() > 0);
 }
 
-void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::VectorXd& Cost, Eigen::MatrixXd &newVCenters, Eigen::MatrixXi &E)
+void straightenEdges(
+  Eigen::MatrixXd &V,
+  Eigen::MatrixXi &F,
+  std::vector<NormalSet> &normal_sets,
+  Eigen::MatrixXd &newV,
+  Eigen::MatrixXi &newF,
+  Eigen::MatrixXd &P1,
+  Eigen::MatrixXd &P2,
+  Eigen::MatrixXd &newVCenters,
+  Eigen::MatrixXi &E)
 {
 	// Initialize boundaries
 	for (std::vector<NormalSet>::iterator set = normal_sets.begin(); set != normal_sets.end(); set++) {
@@ -231,13 +256,13 @@ void straightenEdges(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalS
   createApproxSpheres(newVerticesVector, V, newV, newF); // some points in normal_sets, not in newVertices vector
   // P1, P2 store edges between centers in newVertices based on normal_sets
   connectApproxSpheres(newVerticesVector, normal_sets, V, P1, P2, newVCenters, E);
-  // compute cost per vertex
-  int min_cost_vid = -1;
-  double min_cost = -1;
-  computeRemovalCostPerVertex(newVerticesVector, V, normal_sets, Cost, min_cost_vid, min_cost);
 }
 
-void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen::MatrixXd &newV, Eigen::MatrixXi &newF)
+void createApproxSpheres(
+  std::vector<int> icoCenters,
+  Eigen::MatrixXd &V,
+  Eigen::MatrixXd &newV,
+  Eigen::MatrixXi &newF)
 {
   Eigen::MatrixXd icoV; Eigen::MatrixXi icoF;
   igl::read_triangle_mesh("../shared/data/icosahedron.obj", icoV, icoF);
@@ -276,7 +301,14 @@ void createApproxSpheres(std::vector<int> icoCenters, Eigen::MatrixXd &V, Eigen:
   }
 }
 
-void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &normal_sets, Eigen::MatrixXd &V, Eigen::MatrixXd &P1, Eigen::MatrixXd &P2, Eigen::MatrixXd &newVCenters, Eigen::MatrixXi &E)
+void connectApproxSpheres(
+  std::vector<int> icoCenters,
+  std::vector<NormalSet> &normal_sets,
+  Eigen::MatrixXd &V,
+  Eigen::MatrixXd &P1,
+  Eigen::MatrixXd &P2,
+  Eigen::MatrixXd &newVCenters,
+  Eigen::MatrixXi &E)
 {
   // This is very hacky and needs to be written better. twice as slow as it should be
   int E_size = 0;
@@ -361,7 +393,14 @@ void connectApproxSpheres(std::vector<int> icoCenters, std::vector<NormalSet> &n
 }
 
 // indicies into V of new vertices, get min cost at some v to remove
-void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V, std::vector<NormalSet> normal_sets, Eigen::VectorXd &C, int& min_cost_vid, double& min_cost){
+void computeAngleDeficitPerVertex(
+  std::vector<int> newVertices,
+  Eigen::MatrixXd V,
+  std::vector<NormalSet> normal_sets,
+  Eigen::VectorXd &C,
+  int& min_cost_vid,
+  double& min_cost)
+{
   // initialize all costs to be 2pi
   C = Eigen::VectorXd::Constant(newVertices.size(), 2 * M_PI);
 
@@ -406,11 +445,15 @@ void computeRemovalCostPerVertex(std::vector<int> newVertices, Eigen::MatrixXd V
       min_cost_vid = v_idx;
       min_cost = v_cost;
     }
-    cost_idx++; // could be a point of error..
+    cost_idx++;
   }
 }
 // Remove unimportant vertex
-void removeVertex(std::vector<int> &newVertices, std::vector<NormalSet> &normal_sets, int v_idx) {
+void removeVertex(
+  std::vector<int> &newVertices,
+  std::vector<NormalSet> &normal_sets,
+  int v_idx)
+{
 	std::vector<int>::iterator position = std::find(newVertices.begin(), newVertices.end(), v_idx);
 	if (position != newVertices.end()) {
 		newVertices.erase(position);
