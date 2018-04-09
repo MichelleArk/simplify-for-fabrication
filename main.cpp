@@ -13,7 +13,8 @@
 #include <RAG.h>
 #include <Wireframe.h>
 
-void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges);
+//void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges);
+void view_straightened_mesh(Wireframe wireframe, igl::viewer::Viewer &viewer);
 void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer);
 void preprocess_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F);
 Eigen::Vector3d randcolor();
@@ -67,8 +68,8 @@ int main(int argc, char *argv[])
   Eigen::Vector3d painting_color;
 
   // final outputs for writing
-  Eigen::MatrixXd newVCenters;
-  Eigen::MatrixXi E;
+  //Eigen::MatrixXd newVCenters;
+  //Eigen::MatrixXi E;
 
   bool painting = false;
   viewer.callback_key_pressed =
@@ -118,14 +119,14 @@ int main(int argc, char *argv[])
       {
         std::ofstream myfile;
         myfile.open("output_bunny.txt");
-        myfile << "V: " << newVCenters.rows() << "\n";
-        for(int v_idx = 0; v_idx < newVCenters.rows(); v_idx++){
+        myfile << "V: " << wireframe.newVCenters.rows() << "\n";
+        for(int v_idx = 0; v_idx < wireframe.newVCenters.rows(); v_idx++){
           //int new_v_idx = newVCenters[v_idx]
-          myfile << newVCenters(v_idx, 0) << ", " << newVCenters(v_idx, 1) << ", " << newVCenters(v_idx,2) << "\n";
+          myfile << wireframe.newVCenters(v_idx, 0) << ", " << wireframe.newVCenters(v_idx, 1) << ", " << wireframe.newVCenters(v_idx,2) << "\n";
         }
-        myfile << "E: " << E.rows() << "\n";
-        for(int e_idx = 0; e_idx < E.rows(); e_idx++){
-          myfile << E(e_idx, 0) << ", " << E(e_idx, 1) << "\n";
+        myfile << "E: " << wireframe.newEdges.rows() << "\n";
+        for(int e_idx = 0; e_idx < wireframe.newEdges.rows(); e_idx++){
+          myfile << wireframe.newEdges(e_idx, 0) << ", " << wireframe.newEdges(e_idx, 1) << "\n";
         }
         myfile.close();
         break;
@@ -155,7 +156,10 @@ int main(int argc, char *argv[])
             rag.MergeMinCostRegions(5, target_regions);
           }
         }
-        view_straightened_mesh(V, F, rag.regions, viewer, newVCenters, E);
+
+        wireframe.Update(rag.regions);
+        view_straightened_mesh(wireframe, viewer);
+        //view_straightened_mesh(V, F, rag.regions, viewer, newVCenters, E);
         painting = false;
         break;
       }
@@ -224,7 +228,6 @@ step 1: press 'p' activate painting mode
 step 2: press 'n' compute normal set grouping (based on similar normal)
 step 3: press 's' merge normal set
 step 4: press 'w' to write the resulting joint positions and connecting edges
-step 5: press 'r' to reset
 press 'r' reset
   )";
 
@@ -268,22 +271,16 @@ void color_normal_sets(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<Norma
   viewer.data.set_colors(C);
 }
 
-void view_straightened_mesh(Eigen::MatrixXd &V, Eigen::MatrixXi &F, std::vector<NormalSet> &normal_sets, igl::viewer::Viewer &viewer, Eigen::MatrixXd& newVCenters, Eigen::MatrixXi& Edges){
-  // Straighten edges
-  Eigen::MatrixXd newV;
-  Eigen::MatrixXi newF;
-  Eigen::MatrixXd P1, P2;
-  straightenEdges(V, F, normal_sets, newV, newF, P1, P2, newVCenters, Edges);
-
+void view_straightened_mesh(Wireframe wireframe, igl::viewer::Viewer &viewer){
   // Create a libigl Viewer object
   viewer.data.clear();
-  viewer.data.set_mesh(newV, newF);
-  viewer.data.add_edges(P1, P2, Eigen::RowVector3d(0,0,0));
+  viewer.data.set_mesh(wireframe.wire_V, wireframe.wire_F);
+  viewer.data.add_edges(wireframe.wire_P1, wireframe.wire_P2, Eigen::RowVector3d(0,0,0));
 
   // white faces for joints
-  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(newF.rows(),3,0.5);
+  Eigen::MatrixXd C = Eigen::MatrixXd::Constant(wireframe.wire_F.rows(),3,0.5);
   viewer.data.set_colors(C);
   viewer.core.show_lines = false; // don't show wireframe on joints
-  std::cout << "Num Joints: " << newV.rows() / 12 << std::endl;
-  std::cout << "Num Rods: " << P1.rows() << std::endl;
+  std::cout << "Num Joints: " << wireframe.wire_V.rows() / 12 << std::endl;
+  std::cout << "Num Rods: " << wireframe.wire_P1.rows() << std::endl;
 }

@@ -8,8 +8,8 @@
 #include <map>
 #include <queue>
 #include <igl/per_face_normals.h>
-#include "normalSet.h"
 #include <igl/read_triangle_mesh.h>
+#include "normalSet.h"
 
 void compute_normal_sets(
   const Eigen::MatrixXi &F,
@@ -22,7 +22,9 @@ std::vector<int> get_neighbours(
   int f_idx,
   std::map<std::string,int> edge_to_f);
 
-bool similar_normals(Eigen::Vector3d n1, Eigen::Vector3d n2);
+bool similar_normals(
+  Eigen::Vector3d n1,
+  Eigen::Vector3d n2);
 
 std::map<std::string, int> preprocess_edge_to_face(const Eigen::MatrixXi &F);
 
@@ -36,32 +38,7 @@ bool sharedBoundary(
   Eigen::MatrixXd &V,
   double &shared_bnd_length);
 
-void straightenEdges(
-  Eigen::MatrixXd &V,
-  Eigen::MatrixXi &F,
-  std::vector<NormalSet> &normal_sets,
-  Eigen::MatrixXd &newV,
-  Eigen::MatrixXi &newF,
-  Eigen::MatrixXd &P1,
-  Eigen::MatrixXd &P2,
-  Eigen::MatrixXd &newVCenters,
-  Eigen::MatrixXi &E);
-
-void createApproxSpheres(
-  std::vector<int> icoCenters,
-  Eigen::MatrixXd &V,
-  Eigen::MatrixXd &newV,
-  Eigen::MatrixXi &newF);
-
-void connectApproxSpheres(
-  std::vector<int> icoCenters,
-  std::vector<NormalSet> &normal_sets,
-  Eigen::MatrixXd &V,
-  Eigen::MatrixXd &P1,
-  Eigen::MatrixXd &P2,
-  Eigen::MatrixXd &newVCenters,
-  Eigen::MatrixXi &E);
-
+// These two functions aren't currently used. But they will be helpful in implementing the future work
 void computeAngleDeficitPerVertex(
   std::vector<int> newVertices,
   Eigen::MatrixXd V,
