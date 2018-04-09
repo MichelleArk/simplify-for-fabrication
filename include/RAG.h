@@ -17,9 +17,9 @@ public:
 
   void MergeMinCostRegions(int num_to_remove, int num_regions);
   void UpdateEdgeCosts(int num_regions);
-  void UpdateEdgeCostsSmartly(int set_remaining, int set_removed, std::set<int> neighbors_to_update);
+  void UpdateEdgeCostsSmartly(int set_remaining, int set_removed, std::set<int> neighbors_to_update, int num_regions);
   void GetMinCostRegions(std::vector<NormalSet>::iterator & set_i, std::vector<NormalSet>::iterator & set_j);
-  double GetEdgeCostBetweenRegions(int region1_id, int region2_id);
+  double GetEdgeCostBetweenRegions(int region1_id, int region2_id, int num_regions);
 
 
   std::vector<NormalSet> regions;
