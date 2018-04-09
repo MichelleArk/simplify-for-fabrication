@@ -1,4 +1,3 @@
-#include "euler_characteristic.h"
 #include <igl/read_triangle_mesh.h>
 #include <igl/viewer/Viewer.h>
 #include "compute_normal_sets.h"
